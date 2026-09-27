@@ -1,0 +1,21 @@
+// lab lexer demo
+int Фроленко = 42;
+float result = 3.14 * Фроленко;
+
+if (result > 100) {
+    result = sqrt(result) + cos(0.0);
+} else {
+    result = result - 1;
+}
+
+while (Фроленко != 0) {
+    Фроленко = Фроленко - 1;
+}
+
+string name = "Валерія Фроленко";
+
+float x = sin(3.14) + log(result) * abs(-5);
+
+float bad1 = 3.14.5;
+int bad2 = 123abc;
+int bad3 = @;
