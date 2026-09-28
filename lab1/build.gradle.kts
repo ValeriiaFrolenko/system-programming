@@ -1,5 +1,6 @@
 plugins {
     id("java")
+    id("application")
 }
 
 group = "vfrolenko"
@@ -14,7 +15,10 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     implementation("org.jetbrains:annotations:24.0.0")
+}
 
+application {
+    mainClass.set("vfrolenko.Main")
 }
 
 tasks.test {
@@ -23,4 +27,8 @@ tasks.test {
 
 tasks.withType<JavaExec>().configureEach {
     jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
+}
+
+tasks.named<JavaExec>("run") {
+    standardInput = System.`in`
 }
