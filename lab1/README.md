@@ -70,33 +70,56 @@ src/main/resources/program.txt
 ```
 
 ---
-
 ## Приклад роботи
 
-**Вхід (`program.txt`):**
-```
+**Вхід** (`src/main/resources/program.txt`, скорочений приклад):
+
+```c
 int Фроленко = 42;
-float result = 3.14 * Фроленко;
-if (result > 100) {
-    result = sqrt(result) + cos(0.0);
-}
+float x = 3.14 * Фроленко;
 float bad1 = 3.14.5;
 int bad2 = 123abc;
 ```
 
-**Вихід:**
+**Команда:**
+
+```bash
+./gradlew run --args="src/main/resources/program.txt"
 ```
+
+**Вихід:**
+
+```
+=== FILE: src/main/resources/program.txt ===
+
 === TOKENS ===
-Token{type=KEYWORD              value='int'            line=1, col=1}
-Token{type=IDENTIFIER           value='Фроленко'       line=1, col=5}
-Token{type=ASSIGN               value='='              line=1, col=14}
-Token{type=INTEGER              value='42'             line=1, col=16}
-Token{type=SEMICOLON            value=';'              line=1, col=18}
-...
-Token{type=ERROR                value='Invalid number literal: 3.14.5'  line=6, col=14}
-Token{type=ERROR                value='Invalid number literal: 123abc'  line=7, col=12}
+Token{type=KEYWORD              value='int'           line=1, col=1}
+Token{type=IDENTIFIER           value='Фроленко'      line=1, col=5}
+Token{type=ASSIGN               value='='             line=1, col=14}
+Token{type=INTEGER              value='42'            line=1, col=16}
+Token{type=SEMICOLON            value=';'             line=1, col=18}
+Token{type=KEYWORD              value='float'         line=2, col=1}
+Token{type=IDENTIFIER           value='x'             line=2, col=7}
+Token{type=ASSIGN               value='='             line=2, col=9}
+Token{type=FLOAT                value='3.14'          line=2, col=11}
+Token{type=MULTIPLY             value='*'             line=2, col=16}
+Token{type=IDENTIFIER           value='Фроленко'      line=2, col=18}
+Token{type=SEMICOLON            value=';'             line=2, col=26}
+Token{type=KEYWORD              value='float'         line=3, col=1}
+Token{type=IDENTIFIER           value='bad1'          line=3, col=7}
+Token{type=ASSIGN               value='='             line=3, col=12}
+Token{type=ERROR                value='Invalid number literal: 3.14.5' line=3, col=14}
+Token{type=SEMICOLON            value=';'             line=3, col=20}
+Token{type=KEYWORD              value='int'           line=4, col=1}
+Token{type=IDENTIFIER           value='bad2'          line=4, col=5}
+Token{type=ASSIGN               value='='             line=4, col=10}
+Token{type=ERROR                value='Invalid number literal: 123abc' line=4, col=12}
+Token{type=SEMICOLON            value=';'             line=4, col=18}
+Token{type=EOF                  value=''              line=4, col=19}
 
 === SUMMARY ===
-Total tokens : 35
+Total tokens : 22
 Error tokens : 2
 ```
+
+Повний `program.txt` (23 рядки) дає 101 токен і 3 помилки — див. скріншот запуску.
