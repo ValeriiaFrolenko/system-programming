@@ -19,3 +19,5 @@ float x = sin(3.14) + log(result) * abs(-5);
 float bad1 = 3.14.5;
 int bad2 = 123abc;
 int bad3 = @;
+//
+int y = 1;

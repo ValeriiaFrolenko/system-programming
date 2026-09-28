@@ -4,9 +4,6 @@ import java.util.Set;
 
 public class Lexer {
 
-    // Letters allowed in identifiers:
-    // All ASCII letters a-z A-Z plus Ukrainian letters from "Фроленко":
-    // Ф ф р Р о О л Л е Е н Н к К
     private static final Set<Character> UKRAINIAN_ALLOWED = Set.of(
             'Ф','ф','Р','р','О','о','Л','л','Е','е','Н','н','К','к'
     );
@@ -48,7 +45,7 @@ public class Lexer {
         if (c == '"') {
             return readString();
         }
-        if (Character.isDigit(c)) {
+        if (isAsciiDigit(c)) {
             return readNumber();
         }
         if (isIdentStart(c)) {
@@ -57,16 +54,13 @@ public class Lexer {
         return readOperatorOrDelimiter();
     }
 
-
     private Token readLineComment() {
         int startLine = line;
         int startCol  = column;
         StringBuilder sb = new StringBuilder();
-        sb.append(consume());
-        sb.append(consume());
-        do {
+        while (pos < source.length() && peek() != '\n' && peek() != '\r') {
             sb.append(consume());
-        } while (pos < source.length() && peek() != '\n');
+        }
         return new Token(TokenType.COMMENT, sb.toString(), startLine, startCol);
     }
 
@@ -75,18 +69,17 @@ public class Lexer {
         int startCol  = column;
         StringBuilder sb = new StringBuilder();
         consume();
-        Token token = new Token(TokenType.ERROR,
-                "Unterminated string literal: \"" + sb, startLine, startCol);
         while (pos < source.length()) {
             char c = peek();
             if (c == '"') {
                 consume();
                 return new Token(TokenType.STRING, sb.toString(), startLine, startCol);
             }
-            if (c == '\n') {
-                return token;
+            if (c == '\n' || c == '\r') {
+                break;
             }
-            if (c == '\\' && pos + 1 < source.length()) {
+            if (c == '\\' && pos + 1 < source.length()
+                    && peekNext() != '\n' && peekNext() != '\r') {
                 consume();
                 char esc = consume();
                 switch (esc) {
@@ -100,7 +93,8 @@ public class Lexer {
                 sb.append(consume());
             }
         }
-        return token;
+        return new Token(TokenType.ERROR,
+                "Unterminated string literal: \"" + sb, startLine, startCol);
     }
 
     private Token readNumber() {
@@ -110,32 +104,29 @@ public class Lexer {
         boolean isFloat  = false;
         boolean isError  = false;
 
-        while (pos < source.length() && Character.isDigit(peek())) {
+        while (pos < source.length() && isAsciiDigit(peek())) {
             sb.append(consume());
         }
 
         if (pos < source.length() && peek() == '.') {
-            if (pos + 1 < source.length() && Character.isDigit(source.charAt(pos + 1))) {
+            if (pos + 1 < source.length() && isAsciiDigit(source.charAt(pos + 1))) {
                 isFloat = true;
                 do {
                     sb.append(consume());
-                } while (pos < source.length() && Character.isDigit(peek()));
-                // second dot → error: 3.14.5
+                } while (pos < source.length() && isAsciiDigit(peek()));
                 if (pos < source.length() && peek() == '.') {
                     do {
                         sb.append(consume());
-                    } while (pos < source.length() && (Character.isDigit(peek()) || peek() == '.'));
+                    } while (pos < source.length() && (isAsciiDigit(peek()) || peek() == '.'));
                     isError = true;
                 }
             }
-            // lone trailing dot without digits after → leave dot for next token
         }
 
-        // digit immediately followed by identifier start → error: 123abc
         if (pos < source.length() && isIdentStart(peek())) {
             do {
                 sb.append(consume());
-            } while (pos < source.length() && (isIdentStart(peek()) || Character.isDigit(peek())));
+            } while (pos < source.length() && (isIdentStart(peek()) || isAsciiDigit(peek())));
             isError = true;
         }
 
@@ -152,7 +143,7 @@ public class Lexer {
         int startCol  = column;
         StringBuilder sb = new StringBuilder();
 
-        while (pos < source.length() && (isIdentStart(peek()) || Character.isDigit(peek()))) {
+        while (pos < source.length() && (isIdentStart(peek()) || isAsciiDigit(peek()))) {
             sb.append(consume());
         }
 
@@ -217,6 +208,9 @@ public class Lexer {
         };
     }
 
+    private static boolean isAsciiDigit(char c) {
+        return c >= '0' && c <= '9';
+    }
 
     private boolean isIdentStart(char c) {
         return Character.isLetter(c) && (c < 128 || UKRAINIAN_ALLOWED.contains(c));
