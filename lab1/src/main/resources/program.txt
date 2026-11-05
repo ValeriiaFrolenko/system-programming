@@ -16,8 +16,9 @@ string name = "Валерія Фроленко";
 
 float x = sin(3.14) + log(result) * abs(-5);
 
-float bad1 = 3.14.5;
-int bad2 = 123abc;
-int bad3 = @;
+float bad1 = 3.14;
+int bad2 = 123 abc;
+int bad3 =
 //
 int y = 1;
+
