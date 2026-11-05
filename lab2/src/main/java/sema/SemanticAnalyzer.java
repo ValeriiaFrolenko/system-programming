@@ -11,8 +11,8 @@ import java.util.Set;
 
 public class SemanticAnalyzer {
     private final Map<String, GeometryModel.Point> points = new HashMap<>();
-    private final List<GeometryModel.Segment> lines = new ArrayList<>();
-    private final List<GeometryModel.Segment> perpendiculars = new ArrayList<>();
+    private final List<GeometryModel.Line> lines = new ArrayList<>();
+    private final List<GeometryModel.Perpendicular> perpendiculars = new ArrayList<>();
     private final List<GeometryModel.Triangle> triangles = new ArrayList<>();
 
     public GeometryModel analyze(Stmt.Program program) {
@@ -25,8 +25,6 @@ public class SemanticAnalyzer {
                 visitPerpendicular(p);
             } else if (stmt instanceof Stmt.Triangle t) {
                 visitTriangle(t);
-            } else {
-                throw new SemanticException("Невідомий тип команди: " + stmt.getClass().getSimpleName());
             }
         }
         return new GeometryModel(points, lines, perpendiculars, triangles);
@@ -45,7 +43,7 @@ public class SemanticAnalyzer {
         if (l.a().equals(l.b())) {
             throw new SemanticException("Неможливо провести пряму через одну й ту саму точку '" + l.a() + "'");
         }
-        lines.add(new GeometryModel.Segment(a, b));
+        lines.add(new GeometryModel.Line(a, b));
     }
 
     private void visitPerpendicular(Stmt.Perpendicular p) {
@@ -56,7 +54,7 @@ public class SemanticAnalyzer {
         if (p.baseA().equals(p.baseB())) {
             throw new SemanticException("Базова пряма для перпендикуляра не може бути задана однією точкою");
         }
-        perpendiculars.add(new GeometryModel.Segment(target, baseA));
+        perpendiculars.add(new GeometryModel.Perpendicular(baseA, baseB, target));
     }
 
     private void visitTriangle(Stmt.Triangle t) {
@@ -72,7 +70,6 @@ public class SemanticAnalyzer {
             throw new SemanticException("Трикутник не може мати повторювані вершини");
         }
 
-        // Формула площі трикутника через координати (метод Гауса/детермінанта)
         double area = Math.abs((b.x() - a.x()) * (c.y() - a.y()) - (c.x() - a.x()) * (b.y() - a.y())) / 2.0;
         if (area < 1e-9) {
             throw new SemanticException("Точки " + t.a() + ", " + t.b() + ", " + t.c() + " лежать на одній прямій, трикутник вироджений");

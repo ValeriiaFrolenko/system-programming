@@ -46,11 +46,23 @@ public class Viewport {
         this.offsetY = height - padding - (availableHeight - rangeY * scale) / 2.0 + minY * scale;
     }
 
+    public int getWidth() { return width; }
+    public int getHeight() { return height; }
+    public double getScale() { return scale; }
+
+    public double toScreenXDouble(double x) {
+        return x * scale + offsetX;
+    }
+
+    public double toScreenYDouble(double y) {
+        return -y * scale + offsetY;
+    }
+
     public int toScreenX(double x) {
-        return (int) Math.round(x * scale + offsetX);
+        return (int) Math.round(toScreenXDouble(x));
     }
 
     public int toScreenY(double y) {
-        return (int) Math.round(-y * scale + offsetY);
+        return (int) Math.round(toScreenYDouble(y));
     }
 }

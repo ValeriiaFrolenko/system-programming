@@ -4,9 +4,13 @@ import sema.GeometryModel;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
+import java.awt.geom.Line2D;
+import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Renderer {
     private static final int WIDTH = 800;
@@ -39,13 +43,15 @@ public class Renderer {
 
         g.setColor(COLOR_LINE);
         g.setStroke(new BasicStroke(2f));
-        for (GeometryModel.Segment s : model.lines()) {
-            drawInfiniteLine(g, vp, s);
+        for (GeometryModel.Line l : model.lines()) {
+            drawInfiniteLine(g, vp, l.a().x(), l.a().y(), l.b().x() - l.a().x(), l.b().y() - l.a().y());
         }
 
         g.setColor(COLOR_PERP);
-        for (GeometryModel.Segment p : model.perpendiculars()) {
-            drawInfiniteLine(g, vp, p);
+        for (GeometryModel.Perpendicular p : model.perpendiculars()) {
+            double dx = p.baseB().x() - p.baseA().x();
+            double dy = p.baseB().y() - p.baseA().y();
+            drawInfiniteLine(g, vp, p.target().x(), p.target().y(), -dy, dx);
         }
 
         g.setColor(COLOR_POINT);
@@ -61,23 +67,38 @@ public class Renderer {
         ImageIO.write(image, "png", new File(outputPath));
     }
 
-    private void drawInfiniteLine(Graphics2D g, Viewport vp, GeometryModel.Segment s) {
-        double x1 = s.start().x(), y1 = s.start().y();
-        double x2 = s.end().x(), y2 = s.end().y();
-        double dx = x2 - x1, dy = y2 - y1;
-        double len = Math.hypot(dx, dy);
+    private void drawInfiniteLine(Graphics2D g, Viewport vp, double x0, double y0, double dx, double dy) {
+        if (dx == 0 && dy == 0) return;
 
-        if (len == 0) return;
+        double sx0 = vp.toScreenXDouble(x0);
+        double sy0 = vp.toScreenYDouble(y0);
+        double sdx = dx * vp.getScale();
+        double sdy = -dy * vp.getScale();
 
-        double ux = dx / len, uy = dy / len;
+        List<Point2D.Double> intersections = new ArrayList<>();
 
-        // Розтягуємо лінію далеко за межі полотна, щоб отримати ефект нескінченної прямої
-        double big = 1e5;
-        int sx1 = vp.toScreenX(x1 - ux * big);
-        int sy1 = vp.toScreenY(y1 - uy * big);
-        int sx2 = vp.toScreenX(x2 + ux * big);
-        int sy2 = vp.toScreenY(y2 + uy * big);
+        if (sdx != 0) {
+            double t1 = -sx0 / sdx;
+            double y1 = sy0 + t1 * sdy;
+            if (y1 >= 0 && y1 <= vp.getHeight()) intersections.add(new Point2D.Double(0, y1));
 
-        g.drawLine(sx1, sy1, sx2, sy2);
+            double t2 = (vp.getWidth() - sx0) / sdx;
+            double y2 = sy0 + t2 * sdy;
+            if (y2 >= 0 && y2 <= vp.getHeight()) intersections.add(new Point2D.Double(vp.getWidth(), y2));
+        }
+
+        if (sdy != 0) {
+            double t3 = -sy0 / sdy;
+            double x3 = sx0 + t3 * sdx;
+            if (x3 >= 0 && x3 <= vp.getWidth()) intersections.add(new Point2D.Double(x3, 0));
+
+            double t4 = (vp.getHeight() - sy0) / sdy;
+            double x4 = sx0 + t4 * sdx;
+            if (x4 >= 0 && x4 <= vp.getWidth()) intersections.add(new Point2D.Double(x4, vp.getHeight()));
+        }
+
+        if (intersections.size() >= 2) {
+            g.draw(new Line2D.Double(intersections.get(0), intersections.get(intersections.size() - 1)));
+        }
     }
 }

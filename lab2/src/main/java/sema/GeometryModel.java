@@ -5,11 +5,10 @@ import java.util.Map;
 
 public record GeometryModel(
         Map<String, Point> points,
-        List<Segment> lines,
-        List<Segment> perpendiculars,
+        List<Line> lines,
+        List<Perpendicular> perpendiculars,
         List<Triangle> triangles
 ) {
-    // Компактний конструктор для створення незмінних (immutable) копій
     public GeometryModel {
         points = Map.copyOf(points);
         lines = List.copyOf(lines);
@@ -18,6 +17,7 @@ public record GeometryModel(
     }
 
     public record Point(String name, double x, double y) {}
-    public record Segment(Point start, Point end) {}
+    public record Line(Point a, Point b) {}
+    public record Perpendicular(Point baseA, Point baseB, Point target) {}
     public record Triangle(Point a, Point b, Point c) {}
 }
