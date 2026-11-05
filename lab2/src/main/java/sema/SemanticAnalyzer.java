@@ -14,35 +14,28 @@ public class SemanticAnalyzer {
     private final List<GeometryModel.Line> lines = new ArrayList<>();
     private final List<GeometryModel.Perpendicular> perpendiculars = new ArrayList<>();
     private final List<GeometryModel.Triangle> triangles = new ArrayList<>();
+    private final List<GeometryModel.Segment> segments = new ArrayList<>();
 
     public GeometryModel analyze(Stmt.Program program) {
         for (Stmt stmt : program.statements()) {
-            if (stmt instanceof Stmt.PointDecl p) {
-                visitPoint(p);
-            } else if (stmt instanceof Stmt.LineThrough l) {
-                visitLine(l);
-            } else if (stmt instanceof Stmt.Perpendicular p) {
-                visitPerpendicular(p);
-            } else if (stmt instanceof Stmt.Triangle t) {
-                visitTriangle(t);
-            }
+            if (stmt instanceof Stmt.PointDecl p) visitPoint(p);
+            else if (stmt instanceof Stmt.LineThrough l) visitLine(l);
+            else if (stmt instanceof Stmt.Perpendicular p) visitPerpendicular(p);
+            else if (stmt instanceof Stmt.Triangle t) visitTriangle(t);
+            else if (stmt instanceof Stmt.Segment s) visitSegment(s);
         }
-        return new GeometryModel(points, lines, perpendiculars, triangles);
+        return new GeometryModel(points, lines, perpendiculars, triangles, segments);
     }
 
     private void visitPoint(Stmt.PointDecl p) {
-        if (points.containsKey(p.name())) {
-            throw new SemanticException("Точка '" + p.name() + "' вже була оголошена раніше");
-        }
+        if (points.containsKey(p.name())) throw new SemanticException("Точка '" + p.name() + "' вже оголошена");
         points.put(p.name(), new GeometryModel.Point(p.name(), p.x(), p.y()));
     }
 
     private void visitLine(Stmt.LineThrough l) {
         GeometryModel.Point a = getPoint(l.a());
         GeometryModel.Point b = getPoint(l.b());
-        if (l.a().equals(l.b())) {
-            throw new SemanticException("Неможливо провести пряму через одну й ту саму точку '" + l.a() + "'");
-        }
+        checkDistinct(a, b);
         lines.add(new GeometryModel.Line(a, b));
     }
 
@@ -50,10 +43,7 @@ public class SemanticAnalyzer {
         GeometryModel.Point baseA = getPoint(p.baseA());
         GeometryModel.Point baseB = getPoint(p.baseB());
         GeometryModel.Point target = getPoint(p.targetPoint());
-
-        if (p.baseA().equals(p.baseB())) {
-            throw new SemanticException("Базова пряма для перпендикуляра не може бути задана однією точкою");
-        }
+        checkDistinct(baseA, baseB);
         perpendiculars.add(new GeometryModel.Perpendicular(baseA, baseB, target));
     }
 
@@ -61,28 +51,35 @@ public class SemanticAnalyzer {
         GeometryModel.Point a = getPoint(t.a());
         GeometryModel.Point b = getPoint(t.b());
         GeometryModel.Point c = getPoint(t.c());
-
+        
         Set<String> uniqueNames = new HashSet<>();
         uniqueNames.add(t.a());
         uniqueNames.add(t.b());
         uniqueNames.add(t.c());
-        if (uniqueNames.size() < 3) {
-            throw new SemanticException("Трикутник не може мати повторювані вершини");
-        }
-
+        if (uniqueNames.size() < 3) throw new SemanticException("Трикутник не може мати повторювані вершини");
+        
         double area = Math.abs((b.x() - a.x()) * (c.y() - a.y()) - (c.x() - a.x()) * (b.y() - a.y())) / 2.0;
-        if (area < 1e-9) {
-            throw new SemanticException("Точки " + t.a() + ", " + t.b() + ", " + t.c() + " лежать на одній прямій, трикутник вироджений");
-        }
-
+        if (area < 1e-9) throw new SemanticException("Трикутник вироджений");
+        
         triangles.add(new GeometryModel.Triangle(a, b, c));
+    }
+
+    private void visitSegment(Stmt.Segment s) {
+        GeometryModel.Point a = getPoint(s.a());
+        GeometryModel.Point b = getPoint(s.b());
+        checkDistinct(a, b);
+        segments.add(new GeometryModel.Segment(a, b));
+    }
+
+    private void checkDistinct(GeometryModel.Point a, GeometryModel.Point b) {
+        if (a.x() == b.x() && a.y() == b.y()) {
+            throw new SemanticException("Точки '" + a.name() + "' та '" + b.name() + "' мають однакові координати");
+        }
     }
 
     private GeometryModel.Point getPoint(String name) {
         GeometryModel.Point p = points.get(name);
-        if (p == null) {
-            throw new SemanticException("Точка '" + name + "' не була оголошена");
-        }
+        if (p == null) throw new SemanticException("Точка '" + name + "' не оголошена");
         return p;
     }
 }

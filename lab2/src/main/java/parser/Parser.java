@@ -29,7 +29,7 @@ public class Parser {
             case POINT -> parsePoint();
             case DRAW -> parseLineThrough();
             case BUILD -> parseBuild();
-            default -> throw new ParseException(token, "Очікувався початок команди (ТОЧКА, ПРОВЕСТИ або ПОБУДУВАТИ)");
+            default -> throw new ParseException(token, "Очікувався початок команди");
         };
     }
 
@@ -58,12 +58,11 @@ public class Parser {
         expect(TokenType.BUILD);
         Token next = peek();
 
-        if (next.type() == TokenType.PERPENDICULAR) {
-            return parsePerpendicular();
-        } else if (next.type() == TokenType.TRIANGLE) {
-            return parseTriangle();
-        }
-        throw new ParseException(next, "Очікувався ПЕРПЕНДИКУЛЯР або ТРИКУТНИК після ПОБУДУВАТИ");
+        if (next.type() == TokenType.PERPENDICULAR) return parsePerpendicular();
+        if (next.type() == TokenType.TRIANGLE) return parseTriangle();
+        if (next.type() == TokenType.SEGMENT) return parseSegment();
+        
+        throw new ParseException(next, "Очікувався ПЕРПЕНДИКУЛЯР, ТРИКУТНИК або ВІДРІЗОК");
     }
 
     private Stmt.Perpendicular parsePerpendicular() {
@@ -94,9 +93,17 @@ public class Parser {
         return new Stmt.Triangle(a, b, c);
     }
 
+    private Stmt.Segment parseSegment() {
+        expect(TokenType.SEGMENT);
+        expect(TokenType.FROM);
+        String a = expect(TokenType.IDENTIFIER).text();
+        expect(TokenType.TO);
+        String b = expect(TokenType.IDENTIFIER).text();
+        return new Stmt.Segment(a, b);
+    }
+
     private double parseNumber() {
-        Token token = expect(TokenType.NUMBER);
-        return Double.parseDouble(token.text());
+        return Double.parseDouble(expect(TokenType.NUMBER).text());
     }
 
     private Token peek() {

@@ -3,13 +3,9 @@ package parser;
 import ast.Stmt;
 import lexer.Lexer;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ParserTest {
-
     private static Stmt.Program parse(String source) {
         return new Parser(new Lexer(source).tokenize()).parse();
     }
@@ -51,6 +47,14 @@ class ParserTest {
     }
 
     @Test
+    void parsesSegment() {
+        Stmt.Program program = parse("ПОБУДУВАТИ ВІДРІЗОК ВІД A ДО B");
+        Stmt.Segment seg = (Stmt.Segment) program.statements().getFirst();
+        assertEquals("A", seg.a());
+        assertEquals("B", seg.b());
+    }
+
+    @Test
     void parsesFullProgram() {
         String source = """
                 ТОЧКА A (1, 2)
@@ -59,13 +63,15 @@ class ParserTest {
                 ПРОВЕСТИ ПРЯМУ ЧЕРЕЗ A, B
                 ПОБУДУВАТИ ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ (A, B) В ТОЧЦІ C
                 ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C
+                ПОБУДУВАТИ ВІДРІЗОК ВІД A ДО B
                 """;
         Stmt.Program program = parse(source);
-        assertEquals(6, program.statements().size());
+        assertEquals(7, program.statements().size());
         assertInstanceOf(Stmt.PointDecl.class, program.statements().get(0));
         assertInstanceOf(Stmt.LineThrough.class, program.statements().get(3));
         assertInstanceOf(Stmt.Perpendicular.class, program.statements().get(4));
         assertInstanceOf(Stmt.Triangle.class, program.statements().get(5));
+        assertInstanceOf(Stmt.Segment.class, program.statements().get(6));
     }
 
     @Test

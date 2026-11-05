@@ -1,15 +1,10 @@
 package lexer;
 
 import org.junit.jupiter.api.Test;
-
 import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 class LexerTest {
-
     private static List<Token> tokenize(String source) {
         return new Lexer(source).tokenize();
     }
@@ -69,12 +64,17 @@ class LexerTest {
         assertEquals(TokenType.BY, tokens.get(2).type());
         assertEquals(TokenType.THREE, tokens.get(3).type());
         assertEquals(TokenType.VERTEX, tokens.get(4).type());
+    }
+
+    @Test
+    void tokenizesSegment() {
+        List<Token> tokens = tokenize("ПОБУДУВАТИ ВІДРІЗОК ВІД A ДО B");
+        assertEquals(TokenType.BUILD, tokens.get(0).type());
+        assertEquals(TokenType.SEGMENT, tokens.get(1).type());
+        assertEquals(TokenType.FROM, tokens.get(2).type());
+        assertEquals(TokenType.IDENTIFIER, tokens.get(3).type());
+        assertEquals(TokenType.TO, tokens.get(4).type());
         assertEquals(TokenType.IDENTIFIER, tokens.get(5).type());
-        assertEquals(TokenType.COMMA, tokens.get(6).type());
-        assertEquals(TokenType.IDENTIFIER, tokens.get(7).type());
-        assertEquals(TokenType.COMMA, tokens.get(8).type());
-        assertEquals(TokenType.IDENTIFIER, tokens.get(9).type());
-        assertEquals(TokenType.EOF, tokens.get(10).type());
     }
 
     @Test
@@ -82,20 +82,20 @@ class LexerTest {
         assertEquals(TokenType.POINT, tokenize("ТОЧКА").getFirst().type());
         assertEquals(TokenType.POINT, tokenize("ТОЧКИ").getFirst().type());
         assertEquals(TokenType.POINT_LOC, tokenize("ТОЧЦІ").getFirst().type());
-
         assertEquals(TokenType.LINE, tokenize("ПРЯМА").getFirst().type());
         assertEquals(TokenType.LINE, tokenize("ПРЯМУ").getFirst().type());
         assertEquals(TokenType.LINE, tokenize("ПРЯМОЇ").getFirst().type());
-
         assertEquals(TokenType.VERTEX, tokenize("ВЕРШИНА").getFirst().type());
         assertEquals(TokenType.VERTEX, tokenize("ВЕРШИНАМ").getFirst().type());
+        assertEquals(TokenType.SEGMENT, tokenize("ВІДРІЗКА").getFirst().type());
+        assertEquals(TokenType.SEGMENT, tokenize("ВІДРІЗКУ").getFirst().type());
+        assertEquals(TokenType.SEGMENT, tokenize("ВІДРІЗКИ").getFirst().type());
     }
 
     @Test
     void distinguishesShortStemsFromLongerOnes() {
         assertEquals(TokenType.BY, tokenize("ПО").getFirst().type());
         assertEquals(TokenType.BUILD, tokenize("ПОБУДУВАТИ").getFirst().type());
-
         assertEquals(TokenType.AT, tokenize("В").getFirst().type());
         assertEquals(TokenType.VERTEX, tokenize("ВЕРШИНАМ").getFirst().type());
     }
@@ -127,7 +127,10 @@ class LexerTest {
 
     @Test
     void throwsOnUnknownWord() {
-        assertThrows(LexException.class, () -> tokenize("АБРАКАДАБРА"));
+        assertThrows(LexException.class, () -> tokenize("ПОБУДУВАННЯ"));
+        assertThrows(LexException.class, () -> tokenize("ВІДСТАНЬ"));
+        assertThrows(LexException.class, () -> tokenize("ТОЧКОВИЙ"));
+        assertThrows(LexException.class, () -> tokenize("ПРЯМИЙ"));
     }
 
     @Test
@@ -151,6 +154,7 @@ class LexerTest {
                 ПРОВЕСТИ ПРЯМУ ЧЕРЕЗ A, B
                 ПОБУДУВАТИ ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ (A, B) В ТОЧЦІ C
                 ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C
+                ПОБУДУВАТИ ВІДРІЗОК ВІД A ДО B
                 """;
         List<Token> tokens = tokenize(program);
         assertNotNull(tokens);

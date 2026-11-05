@@ -21,6 +21,7 @@ public class Renderer {
     private static final Color COLOR_LINE = new Color(0, 100, 200);
     private static final Color COLOR_PERP = new Color(220, 50, 50);
     private static final Color COLOR_TRIANGLE = new Color(50, 180, 50);
+    private static final Color COLOR_SEGMENT = new Color(255, 140, 0);
 
     public void render(GeometryModel model, String outputPath) throws IOException {
         BufferedImage image = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
@@ -31,6 +32,7 @@ public class Renderer {
 
         g.setColor(Color.WHITE);
         g.fillRect(0, 0, WIDTH, HEIGHT);
+        g.setStroke(new BasicStroke(2f));
 
         Viewport vp = new Viewport(model, WIDTH, HEIGHT, PADDING);
 
@@ -41,8 +43,12 @@ public class Renderer {
             g.drawPolygon(xs, ys, 3);
         }
 
+        g.setColor(COLOR_SEGMENT);
+        for (GeometryModel.Segment s : model.segments()) {
+            g.drawLine(vp.toScreenX(s.start().x()), vp.toScreenY(s.start().y()), vp.toScreenX(s.end().x()), vp.toScreenY(s.end().y()));
+        }
+
         g.setColor(COLOR_LINE);
-        g.setStroke(new BasicStroke(2f));
         for (GeometryModel.Line l : model.lines()) {
             drawInfiniteLine(g, vp, l.a().x(), l.a().y(), l.b().x() - l.a().x(), l.b().y() - l.a().y());
         }
