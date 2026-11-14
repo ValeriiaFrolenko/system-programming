@@ -15,16 +15,19 @@ import java.util.List;
  * <текст>              ::= <список_речень> #
  * <список_речень>      ::= <речення> <продовження_списку>
  * <продовження_списку> ::= ; <список_речень> | <пусто>
- * <речення>            ::= <точка> | <пряма_через> | <перпендикуляр>
- *                        | <трикутник> | <відрізок>
+ * <речення>            ::= <точка> | <пряма_через> | <побудова>
+ * <побудова>           ::= ПОБУДУВАТИ <вид_побудови>
+ * <вид_побудови>       ::= <перпендикуляр> | <трикутник> | <відрізок>
  * }</pre>
  *
- * <p>Граматика — LL(1): кожне рішення про розгалуження ухвалюється за
- * одним токеном уперед. Для цього {@link TokenType} містить окремі типи
- * для перших слів кожного речення ({@code POINT}, {@code DRAW},
- * {@code BUILD}) і для ключових слів усередині ({@code PERPENDICULAR},
- * {@code TRIANGLE}, {@code SEGMENT}) — щоб після {@code BUILD} можна
- * було однозначно вибрати гілку.
+ * <p>Граматика — строго LL(1): кожне рішення про розгалуження
+ * ухвалюється за одним токеном уперед. Три команди починаються зі
+ * спільного префікса {@code ПОБУДУВАТИ}; щоб зберегти LL(1), граматику
+ * піддано <b>лівій факторизації</b> — префікс винесено в нетермінал
+ * {@code <побудова>}, і розгалуження відбувається за наступним токеном
+ * ({@code PERPENDICULAR}, {@code TRIANGLE} або {@code SEGMENT}), які
+ * вже різні. У коді цьому відповідає {@link #parseBuild()}. Завдяки
+ * цьому парсер не робить повернень (backtracking).
  *
  * <p>Після побудови дерево передається в {@link TreeFolder}, який згортає
  * його у спрощене AST {@link ast.Stmt}.
@@ -95,7 +98,15 @@ public class Parser {
         return new ParseNode.LineThrough(pair);
     }
 
-    /** {@code BUILD} — спільний префікс для трьох різних речень. */
+    /**
+     * {@code <побудова> ::= ПОБУДУВАТИ <вид_побудови>}.
+     *
+     * <p>Це і є ліва факторизація: спільний префікс {@code ПОБУДУВАТИ}
+     * споживається тут, і лише після нього розгалуження йде за наступним
+     * токеном. Три різні типи {@link TokenType} ({@code PERPENDICULAR},
+     * {@code TRIANGLE}, {@code SEGMENT}) утворюють різні FIRST-множини,
+     * тому граматика лишається LL(1).
+     */
     private ParseNode parseBuild() {
         expect(TokenType.BUILD);
         Token next = peek();
@@ -107,7 +118,7 @@ public class Parser {
         throw new ParseException(next, "Очікувався ПЕРПЕНДИКУЛЯР, ТРИКУТНИК або ВІДРІЗОК");
     }
 
-    /** {@code <перпендикуляр> ::= … ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ ( <пара_імен> ) В ТОЧЦІ <ім'я>} */
+    /** {@code <перпендикуляр> ::= ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ ( <пара_імен> ) В ТОЧЦІ <ім'я>} */
     private ParseNode.Perpendicular parsePerpendicular() {
         expect(TokenType.PERPENDICULAR);
         expect(TokenType.TO);
@@ -121,7 +132,7 @@ public class Parser {
         return new ParseNode.Perpendicular(base, target);
     }
 
-    /** {@code <трикутник> ::= … ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ <список_імен>} */
+    /** {@code <трикутник> ::= ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ <список_імен>} */
     private ParseNode.Triangle parseTriangle() {
         expect(TokenType.TRIANGLE);
         expect(TokenType.BY);
@@ -131,7 +142,7 @@ public class Parser {
         return new ParseNode.Triangle(vertices);
     }
 
-    /** {@code <відрізок> ::= … ВІДРІЗОК ВІД <ім'я> ДО <ім'я>} */
+    /** {@code <відрізок> ::= ВІДРІЗОК ВІД <ім'я> ДО <ім'я>} */
     private ParseNode.Segment parseSegment() {
         expect(TokenType.SEGMENT);
         expect(TokenType.FROM);
