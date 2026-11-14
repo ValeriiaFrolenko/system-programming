@@ -7,7 +7,7 @@ public class SymbolTable {
     private final Map<String, Integer> nameToCode = new LinkedHashMap<>();
 
     public int codeFor(String name) {
-        return nameToCode.computeIfAbsent(name, k -> nameToCode.size());
+        return nameToCode.computeIfAbsent(name, _ -> nameToCode.size());
     }
 
     public boolean contains(String name) {

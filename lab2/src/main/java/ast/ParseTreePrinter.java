@@ -72,6 +72,6 @@ public class ParseTreePrinter {
     }
 
     private void indent(int depth, StringBuilder sb) {
-        sb.append("  ".repeat(depth));
+        sb.repeat("  ", depth);
     }
 }

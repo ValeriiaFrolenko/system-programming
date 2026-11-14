@@ -28,14 +28,14 @@ public class Viewport {
                 minX = Math.min(minX, p.x()); maxX = Math.max(maxX, p.x());
                 minY = Math.min(minY, p.y()); maxY = Math.max(maxY, p.y());
                 any = true;
-            } else if (cmd instanceof GraphicsCommand.DrawSegment s) {
-                minX = Math.min(minX, Math.min(s.x1(), s.x2()));
-                maxX = Math.max(maxX, Math.max(s.x1(), s.x2()));
-                minY = Math.min(minY, Math.min(s.y1(), s.y2()));
-                maxY = Math.max(maxY, Math.max(s.y1(), s.y2()));
+            } else if (cmd instanceof GraphicsCommand.DrawSegment(double x1, double y1, double x2, double y2)) {
+                minX = Math.min(minX, Math.min(x1, x2));
+                maxX = Math.max(maxX, Math.max(x1, x2));
+                minY = Math.min(minY, Math.min(y1, y2));
+                maxY = Math.max(maxY, Math.max(y1, y2));
                 any = true;
-            } else if (cmd instanceof GraphicsCommand.DrawPolygon poly) {
-                for (double[] v : poly.vertices()) {
+            } else if (cmd instanceof GraphicsCommand.DrawPolygon(List<double[]> vertices)) {
+                for (double[] v : vertices) {
                     minX = Math.min(minX, v[0]); maxX = Math.max(maxX, v[0]);
                     minY = Math.min(minY, v[1]); maxY = Math.max(maxY, v[1]);
                 }

@@ -139,7 +139,7 @@ class LexerTest {
         Token firstA = tokens.get(1);
         Token secondA = tokens.stream()
                 .filter(t -> t.type() == TokenType.IDENTIFIER && t.text().equals("A"))
-                .reduce((a, b) -> b)
+                .reduce((_, b) -> b)
                 .orElseThrow();
         Token b = tokens.stream()
                 .filter(t -> t.type() == TokenType.IDENTIFIER && t.text().equals("B"))

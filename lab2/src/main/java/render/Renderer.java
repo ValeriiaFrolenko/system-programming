@@ -124,7 +124,7 @@ public class Renderer {
 
         g.setColor(COLOR_INFINITE_LINE);
         if (intersections.size() >= 2) {
-            g.draw(new Line2D.Double(intersections.get(0), intersections.get(intersections.size() - 1)));
+            g.draw(new Line2D.Double(intersections.getFirst(), intersections.getLast()));
         }
     }
 }
