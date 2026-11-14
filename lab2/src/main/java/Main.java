@@ -43,8 +43,6 @@ void main(String[] args) {
     String outputPath = "output.png";
     boolean printTree = false;
 
-    // "--tree" шукаємо окремо, щоб він не зсував позиційні input/output
-    // незалежно від того, де в argv він вказаний.
     List<String> positional = new ArrayList<>();
     for (String arg : args) {
         if (arg.equals("--tree")) printTree = true;

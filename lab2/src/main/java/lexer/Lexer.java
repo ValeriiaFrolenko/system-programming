@@ -1,63 +1,23 @@
 package lexer;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * Лексичний аналізатор.
  *
- * <p>Перетворює вихідний текст програми на послідовність токенів
- * ({@link Token}). Розпізнає:
- * <ul>
- *   <li>ключові слова — за <b>основами</b> (див. {@link #STEM_WORDS}),
- *       що дозволяє приймати будь-які відмінкові форми без окремого
- *       переліку закінчень: {@code ТОЧКА}, {@code ТОЧКИ}, {@code ТОЧОК} →
- *       {@link TokenType#POINT};</li>
- *   <li>точні слова ({@link #EXACT_WORDS}) — для коротких прийменників
- *       {@code В}, {@code ДО}, {@code ПО}, {@code ВІД}, {@code ЧЕРЕЗ},
- *       які небезпечно матчити за основою (основа {@code В} збіглася б із
- *       {@code ВЕРШИНАМ});</li>
- *   <li>числа — цілі й дробові, з опціональним знаком {@code +}/{@code -};</li>
- *   <li>ідентифікатори — лише латиниця, реєстронезалежно; код береться
- *       з {@link SymbolTable};</li>
- *   <li>пунктуацію {@code ( ) , ; #}.</li>
- * </ul>
+ * <p>Перетворює вихідний текст на послідовність токенів ({@link Token}).
+ * Класифікацію ключових слів делегує {@link KeywordTable}, тож сам
+ * займається лише скануванням символів: числа, розділові знаки,
+ * послідовності літер, відстеження позиції.
  *
- * <p>Кінець тексту — символ {@code #}. Останнім у потоці завжди йде
- * {@link TokenType#EOF}.
- *
- * <p>Порядок перевірки основ важливий: {@code ПЕРПЕНДИКУЛЯР} перевіряється
- * раніше за {@code ПРЯМ}, {@code ТОЧК} — після {@code ТОЧЦ}, інакше
- * {@code ТОЧЦІ} розпізналося б як {@code ТОЧК} + залишок. Це досягається
- * порядком вставки в {@link LinkedHashMap}.
+ * <p>Ідентифікатори — лише латиниця, реєстронезалежно; код береться з
+ * {@link SymbolTable} і зберігається прямо в токені
+ * ({@link Token#code()}). Кінець тексту — символ {@code #}. Останнім у
+ * потоці завжди йде {@link TokenType#EOF}.
  */
 public class Lexer {
-    private static final Map<String, TokenType> EXACT_WORDS = new HashMap<>();
-    private static final Map<String, TokenType> STEM_WORDS = new LinkedHashMap<>();
-
-    static {
-        EXACT_WORDS.put("В", TokenType.AT);
-        EXACT_WORDS.put("ДО", TokenType.TO);
-        EXACT_WORDS.put("ПО", TokenType.BY);
-        EXACT_WORDS.put("ВІД", TokenType.FROM);
-        EXACT_WORDS.put("ЧЕРЕЗ", TokenType.THROUGH);
-
-        STEM_WORDS.put("ПЕРПЕНДИКУЛЯР", TokenType.PERPENDICULAR);
-        STEM_WORDS.put("ТРИКУТНИК", TokenType.TRIANGLE);
-        STEM_WORDS.put("ПОБУДУВА", TokenType.BUILD);
-        STEM_WORDS.put("ПРОВЕСТ", TokenType.DRAW);
-        STEM_WORDS.put("ВЕРШИН", TokenType.VERTEX);
-        STEM_WORDS.put("ТРЬОМ", TokenType.THREE);
-        STEM_WORDS.put("ТОЧЦ", TokenType.POINT_LOC);
-        STEM_WORDS.put("ТОЧК", TokenType.POINT);
-        STEM_WORDS.put("ПРЯМ", TokenType.LINE);
-        STEM_WORDS.put("ВІДРІЗ", TokenType.SEGMENT);
-    }
-
     private final String source;
     private final SymbolTable symbolTable;
     private int pos = 0;
@@ -107,7 +67,7 @@ public class Lexer {
         throw new LexException(startLine, startCol, "Неочікуваний символ: '" + c + "'");
     }
 
-    /** Читає число: {@code [+-]?digit+(\.digit+)?}. */
+    /** Читає число: [+-]?digit+(.digit+)?. */
     private Token readNumber() {
         int startLine = line;
         int startCol = column;
@@ -127,7 +87,7 @@ public class Lexer {
         return new Token(TokenType.NUMBER, source.substring(start, pos), startLine, startCol);
     }
 
-    /** Читає або ключове слово (за основою), або ідентифікатор (латиниця). */
+    /** Читає або ключове слово (через {@link KeywordTable}), або ідентифікатор. */
     private Token readWordOrIdentifier() {
         int startLine = line;
         int startCol = column;
@@ -138,15 +98,9 @@ public class Lexer {
         String text = source.substring(start, pos);
         String upper = text.toUpperCase(Locale.ROOT);
 
-        if (EXACT_WORDS.containsKey(upper)) {
-            return new Token(EXACT_WORDS.get(upper), text, startLine, startCol);
-        }
-
-        for (Map.Entry<String, TokenType> entry : STEM_WORDS.entrySet()) {
-            String stem = entry.getKey();
-            if (upper.startsWith(stem)) {
-                return new Token(entry.getValue(), text, startLine, startCol);
-            }
+        TokenType keyword = KeywordTable.classify(upper);
+        if (keyword != null) {
+            return new Token(keyword, text, startLine, startCol);
         }
 
         if (isLatin(text)) {

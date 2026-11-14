@@ -4,10 +4,8 @@ import ast.Stmt;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Семантичний аналізатор.
@@ -17,9 +15,11 @@ import java.util.Set;
  *   <li>точка не оголошується двічі;</li>
  *   <li>усі точки, на які посилаються команди, справді оголошені раніше;</li>
  *   <li>пряма, перпендикуляр і відрізок не будуються між точками з
- *       однаковими координатами (це дало б нульовий напрямний вектор);</li>
- *   <li>трикутник має три різні вершини і невироджений (ненульова площа).</li>
+ *       однаковими координатами (це дало б нульовий напрямний вектор).</li>
  * </ul>
+ *
+ * <p>Перевірки, специфічні для трикутника (унікальність вершин і
+ * ненульова площа), винесені в {@link TriangleValidator}.
  *
  * <p>Паралельно з перевірками будує {@link GeometryModel} — розв'язану
  * модель, де замість імен уже стоять об'єкти {@link GeometryModel.Point}.
@@ -68,16 +68,7 @@ public class SemanticAnalyzer {
         GeometryModel.Point a = getPoint(t.a());
         GeometryModel.Point b = getPoint(t.b());
         GeometryModel.Point c = getPoint(t.c());
-
-        Set<String> uniqueNames = new HashSet<>();
-        uniqueNames.add(t.a());
-        uniqueNames.add(t.b());
-        uniqueNames.add(t.c());
-        if (uniqueNames.size() < 3) throw new SemanticException("Трикутник не може мати повторювані вершини");
-
-        double area = Math.abs((b.x() - a.x()) * (c.y() - a.y()) - (c.x() - a.x()) * (b.y() - a.y())) / 2.0;
-        if (area < 1e-9) throw new SemanticException("Трикутник вироджений");
-
+        TriangleValidator.validate(a, b, c);
         triangles.add(new GeometryModel.Triangle(a, b, c));
     }
 
