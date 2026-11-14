@@ -1,4 +1,5 @@
 import ast.ParseNode;
+import ast.ParseTreePrinter;
 import ast.Stmt;
 import lexer.LexException;
 import lexer.Lexer;
@@ -18,15 +19,28 @@ import sema.SemanticException;
 void main(String[] args) {
     String inputPath = "input.geo";
     String outputPath = "output.png";
+    boolean printTree = false;
 
-    if (args.length >= 1) inputPath = args[0];
-    if (args.length >= 2) outputPath = args[1];
+    // "--tree" шукаємо окремо, щоб він не зсував позиційні input/output
+    // незалежно від того, де в argv він вказаний.
+    List<String> positional = new ArrayList<>();
+    for (String arg : args) {
+        if (arg.equals("--tree")) printTree = true;
+        else positional.add(arg);
+    }
+    if (positional.size() >= 1) inputPath = positional.get(0);
+    if (positional.size() >= 2) outputPath = positional.get(1);
 
     try {
         String source = Files.readString(Path.of(inputPath), StandardCharsets.UTF_8);
 
         var tokens = new Lexer(source).tokenize();
         ParseNode.Program tree = new Parser(tokens).parse();
+
+        if (printTree) {
+            IO.println(new ParseTreePrinter().print(tree));
+        }
+
         Stmt.Program ast = new TreeFolder().fold(tree);
         GeometryModel model = new SemanticAnalyzer().analyze(ast);
         List<GraphicsCommand> commands = new CodeGenerator().generate(model);
