@@ -11,12 +11,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Виконавець команд графічного пакета. Не знає нічого про геометричну
- * семантику (трикутники, перпендикуляри, прямі через точки тощо) —
- * лише вміє намалювати чотири примітиви з {@link GraphicsCommand}:
- * точку, відрізок, нескінченну пряму і многокутник. Масштабування і
- * обрізання нескінченних ліній по межах вікна (Viewport) — це його
+ * Виконавець команд графічного пакета.
+ *
+ * <p>Не знає нічого про геометричну семантику (трикутники,
+ * перпендикуляри, прямі через точки тощо) — лише вміє намалювати
+ * чотири примітиви з {@link GraphicsCommand}: точку, відрізок,
+ * нескінченну пряму і многокутник. Масштабування і обрізання
+ * нескінченних ліній по межах вікна ({@link Viewport}) — це його
  * власна відповідальність виконавця, а не генератора команд.
+ *
+ * <p>Порядок малювання фіксований і не залежить від порядку команд у
+ * списку: спочатку полігони, потім відрізки, потім нескінченні прямі,
+ * наприкінці точки з підписами. Так дрібні елементи завжди зверху.
  */
 public class Renderer {
     private static final int WIDTH = 800;
@@ -28,6 +34,7 @@ public class Renderer {
     private static final Color COLOR_POLYGON = new Color(50, 180, 50);
     private static final Color COLOR_SEGMENT = new Color(255, 140, 0);
 
+    /** Виконує всі команди і зберігає результат у PNG за вказаним шляхом. */
     public void render(List<GraphicsCommand> commands, String outputPath) throws IOException {
         BufferedImage image = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = image.createGraphics();

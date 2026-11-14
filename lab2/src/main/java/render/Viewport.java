@@ -3,10 +3,25 @@ package render;
 import java.util.List;
 
 /**
- * Відповідає за масштабування математичних координат у піксельні.
- * Межі (bounding box) обчислюються з самих команд малювання, а не з
- * геометричної моделі — Viewport лишається частиною виконавця
- * (Renderer), генератор команд про нього нічого не знає.
+ * Перетворення математичних координат у піксельні.
+ *
+ * <p>Обчислює bounding box зі списку {@link GraphicsCommand} (а не з
+ * {@link sema.GeometryModel}), тому лишається частиною виконавця
+ * ({@link Renderer}) — {@link CodeGenerator} про нього нічого не знає.
+ *
+ * <p>Що робить:
+ * <ul>
+ *   <li>знаходить мінімальний прямокутник, що містить усі точки,
+ *       кінці відрізків і вершини полігонів, а також точки проходження
+ *       нескінченних прямих;</li>
+ *   <li>підбирає єдиний коефіцієнт масштабу {@code scale}, щоб фігура
+ *       вмістилася в полотно з відступами {@code padding} з усіх боків;</li>
+ *   <li>інвертує вісь Y (у математиці Y росте вгору, у Java2D — вниз);</li>
+ *   <li>центрує результат у доступній області.</li>
+ * </ul>
+ *
+ * <p>Порожній список команд дає scale=1 і стандартне вирівнювання —
+ * щоб не ділити на нуль і не падати на порожньому вході.
  */
 public class Viewport {
     private final int width;
@@ -15,6 +30,14 @@ public class Viewport {
     private final double offsetX;
     private final double offsetY;
 
+    /**
+     * Будує viewport за списком команд.
+     *
+     * @param commands команди, з яких обчислюється bounding box
+     * @param width    ширина полотна в пікселях
+     * @param height   висота полотна в пікселях
+     * @param padding  відступ від краю полотна в пікселях
+     */
     public Viewport(List<GraphicsCommand> commands, int width, int height, int padding) {
         this.width = width;
         this.height = height;
@@ -75,18 +98,22 @@ public class Viewport {
     public int getHeight() { return height; }
     public double getScale() { return scale; }
 
+    /** Математичне X → піксельне X (дробове значення). */
     public double toScreenXDouble(double x) {
         return x * scale + offsetX;
     }
 
+    /** Математичне Y → піксельне Y (дробове значення; вісь інвертована). */
     public double toScreenYDouble(double y) {
         return -y * scale + offsetY;
     }
 
+    /** Те саме, що {@link #toScreenXDouble}, з округленням до int. */
     public int toScreenX(double x) {
         return (int) Math.round(toScreenXDouble(x));
     }
 
+    /** Те саме, що {@link #toScreenYDouble}, з округленням до int. */
     public int toScreenY(double y) {
         return (int) Math.round(toScreenYDouble(y));
     }

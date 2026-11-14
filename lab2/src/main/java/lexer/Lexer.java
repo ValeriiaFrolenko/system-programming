@@ -7,6 +7,34 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Лексичний аналізатор.
+ *
+ * <p>Перетворює вихідний текст програми на послідовність токенів
+ * ({@link Token}). Розпізнає:
+ * <ul>
+ *   <li>ключові слова — за <b>основами</b> (див. {@link #STEM_WORDS}),
+ *       що дозволяє приймати будь-які відмінкові форми без окремого
+ *       переліку закінчень: {@code ТОЧКА}, {@code ТОЧКИ}, {@code ТОЧОК} →
+ *       {@link TokenType#POINT};</li>
+ *   <li>точні слова ({@link #EXACT_WORDS}) — для коротких прийменників
+ *       {@code В}, {@code ДО}, {@code ПО}, {@code ВІД}, {@code ЧЕРЕЗ},
+ *       які небезпечно матчити за основою (основа {@code В} збіглася б із
+ *       {@code ВЕРШИНАМ});</li>
+ *   <li>числа — цілі й дробові, з опціональним знаком {@code +}/{@code -};</li>
+ *   <li>ідентифікатори — лише латиниця, реєстронезалежно; код береться
+ *       з {@link SymbolTable};</li>
+ *   <li>пунктуацію {@code ( ) , ; #}.</li>
+ * </ul>
+ *
+ * <p>Кінець тексту — символ {@code #}. Останнім у потоці завжди йде
+ * {@link TokenType#EOF}.
+ *
+ * <p>Порядок перевірки основ важливий: {@code ПЕРПЕНДИКУЛЯР} перевіряється
+ * раніше за {@code ПРЯМ}, {@code ТОЧК} — після {@code ТОЧЦ}, інакше
+ * {@code ТОЧЦІ} розпізналося б як {@code ТОЧК} + залишок. Це досягається
+ * порядком вставки в {@link LinkedHashMap}.
+ */
 public class Lexer {
     private static final Map<String, TokenType> EXACT_WORDS = new HashMap<>();
     private static final Map<String, TokenType> STEM_WORDS = new LinkedHashMap<>();
@@ -36,19 +64,20 @@ public class Lexer {
     private int line = 1;
     private int column = 1;
 
+    /** Створює лексер із власною таблицею ідентифікаторів. */
     public Lexer(String source) {
         this(source, new SymbolTable());
     }
 
+    /** Створює лексер із зовнішньою таблицею (для повторного використання). */
     public Lexer(String source, SymbolTable symbolTable) {
         this.source = source;
         this.symbolTable = symbolTable;
     }
 
-    public SymbolTable symbolTable() {
-        return symbolTable;
-    }
+    public SymbolTable symbolTable() { return symbolTable; }
 
+    /** Повертає всі токени тексту, завершуючи потоком {@link TokenType#EOF}. */
     public List<Token> tokenize() {
         List<Token> tokens = new ArrayList<>();
         while (true) {
@@ -61,6 +90,7 @@ public class Lexer {
         }
     }
 
+    /** Розпізнає один токен з поточної позиції (без пропусків). */
     private Token nextToken() {
         int startLine = line;
         int startCol = column;
@@ -77,6 +107,7 @@ public class Lexer {
         throw new LexException(startLine, startCol, "Неочікуваний символ: '" + c + "'");
     }
 
+    /** Читає число: {@code [+-]?digit+(\.digit+)?}. */
     private Token readNumber() {
         int startLine = line;
         int startCol = column;
@@ -96,6 +127,7 @@ public class Lexer {
         return new Token(TokenType.NUMBER, source.substring(start, pos), startLine, startCol);
     }
 
+    /** Читає або ключове слово (за основою), або ідентифікатор (латиниця). */
     private Token readWordOrIdentifier() {
         int startLine = line;
         int startCol = column;
@@ -125,6 +157,7 @@ public class Lexer {
         throw new LexException(startLine, startCol, "Невідоме слово: '" + text + "'");
     }
 
+    /** Чи складається рядок лише з латинських літер (обидва регістри). */
     private static boolean isLatin(String text) {
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);

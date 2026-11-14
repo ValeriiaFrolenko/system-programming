@@ -8,14 +8,23 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Згортає дерево синтаксичного розбору {@link ParseNode} у абстрактне
- * синтаксичне дерево {@link Stmt}. Це окремий прохід після побудови
- * дерева розбору: він не аналізує граматику, а лише перекладає вже
- * розібрану структуру речень у зручне для семантичного аналізу
- * представлення.
+ * Згортає дерево синтаксичного розбору {@link ParseNode} у спрощене AST
+ * {@link Stmt}.
+ *
+ * <p>Окремий прохід після {@link Parser}: не аналізує граматику, а лише
+ * «сплющує» вже розібрану структуру, прибираючи службові вузли
+ * ({@code Sentence}, {@code NamePair}, {@code NameList}, {@code Name},
+ * {@code NumberLit}) і перетворюючи текстові токени на зручні типи
+ * ({@code String} для імен, {@code double} для координат).
+ *
+ * <p>Тут же — єдина перевірка, яку зручніше зробити на цьому рівні:
+ * кількість вершин трикутника мусить бути рівно 3. Усе інше (чи існують
+ * точки, чи не збігаються координати) перевіряє вже
+ * {@link sema.SemanticAnalyzer}.
  */
 public class TreeFolder {
 
+    /** Згортає все дерево в {@link Stmt.Program}. */
     public Stmt.Program fold(ParseNode.Program program) {
         List<Stmt> statements = new ArrayList<>();
         for (ParseNode.Sentence sentence : program.sentences()) {
@@ -39,10 +48,7 @@ public class TreeFolder {
     }
 
     private Stmt.PointDecl foldPointDecl(ParseNode.PointDecl p) {
-        String name = nameOf(p.name());
-        double x = numberOf(p.x());
-        double y = numberOf(p.y());
-        return new Stmt.PointDecl(name, x, y);
+        return new Stmt.PointDecl(nameOf(p.name()), numberOf(p.x()), numberOf(p.y()));
     }
 
     private Stmt.LineThrough foldLineThrough(ParseNode.LineThrough l) {

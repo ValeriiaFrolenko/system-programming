@@ -9,13 +9,25 @@ import java.util.List;
 
 /**
  * Низхідний синтаксичний аналізатор (метод рекурсивного спуску).
- * Будує дерево синтаксичного розбору {@link ParseNode} за граматикою:
  *
- * <текст>            ::= <список_речень> #
- * <список_речень>    ::= <речення> <продовження_списку>
+ * <p>Будує дерево синтаксичного розбору {@link ParseNode} за граматикою:
+ * <pre>{@code
+ * <текст>              ::= <список_речень> #
+ * <список_речень>      ::= <речення> <продовження_списку>
  * <продовження_списку> ::= ; <список_речень> | <пусто>
- * <речення>          ::= <точка> | <пряма_через> | <перпендикуляр>
- *                       | <трикутник> | <відрізок>
+ * <речення>            ::= <точка> | <пряма_через> | <перпендикуляр>
+ *                        | <трикутник> | <відрізок>
+ * }</pre>
+ *
+ * <p>Граматика — LL(1): кожне рішення про розгалуження ухвалюється за
+ * одним токеном уперед. Для цього {@link TokenType} містить окремі типи
+ * для перших слів кожного речення ({@code POINT}, {@code DRAW},
+ * {@code BUILD}) і для ключових слів усередині ({@code PERPENDICULAR},
+ * {@code TRIANGLE}, {@code SEGMENT}) — щоб після {@code BUILD} можна
+ * було однозначно вибрати гілку.
+ *
+ * <p>Після побудови дерево передається в {@link TreeFolder}, який згортає
+ * його у спрощене AST {@link ast.Stmt}.
  */
 public class Parser {
     private final List<Token> tokens;
@@ -25,6 +37,7 @@ public class Parser {
         this.tokens = tokens;
     }
 
+    /** Розбирає весь текст і повертає корінь дерева. */
     public ParseNode.Program parse() {
         List<ParseNode.Sentence> sentences = parseSentenceList();
         expect(TokenType.END);
@@ -32,7 +45,7 @@ public class Parser {
         return new ParseNode.Program(sentences);
     }
 
-    /** <список_речень> ::= <речення> <продовження_списку> */
+    /** {@code <список_речень> ::= <речення> <продовження_списку>} */
     private List<ParseNode.Sentence> parseSentenceList() {
         List<ParseNode.Sentence> sentences = new ArrayList<>();
         sentences.add(parseSentence());
@@ -40,7 +53,7 @@ public class Parser {
         return sentences;
     }
 
-    /** <продовження_списку> ::= ; <список_речень> | <пусто> */
+    /** {@code <продовження_списку> ::= ; <список_речень> | <пусто>} */
     private List<ParseNode.Sentence> parseSentenceListTail() {
         if (peek().type() == TokenType.SEMICOLON) {
             advance();
@@ -49,7 +62,7 @@ public class Parser {
         return List.of();
     }
 
-    /** <речення> ::= <точка> | <пряма_через> | <перпендикуляр> | <трикутник> | <відрізок> */
+    /** {@code <речення>} — розгалуження за першим токеном. */
     private ParseNode.Sentence parseSentence() {
         Token token = peek();
         ParseNode body = switch (token.type()) {
@@ -61,7 +74,7 @@ public class Parser {
         return new ParseNode.Sentence(body);
     }
 
-    /** <точка> ::= ТОЧКА <ім'я> ( <число> , <число> ) */
+    /** {@code <точка> ::= ТОЧКА <ім'я> ( <число> , <число> )} */
     private ParseNode.PointDecl parsePointDecl() {
         expect(TokenType.POINT);
         ParseNode.Name name = parseName();
@@ -73,7 +86,7 @@ public class Parser {
         return new ParseNode.PointDecl(name, x, y);
     }
 
-    /** <пряма_через> ::= ПРОВЕСТИ ПРЯМУ ЧЕРЕЗ <пара_імен> */
+    /** {@code <пряма_через> ::= ПРОВЕСТИ ПРЯМУ ЧЕРЕЗ <пара_імен>} */
     private ParseNode.LineThrough parseLineThrough() {
         expect(TokenType.DRAW);
         expect(TokenType.LINE);
@@ -82,6 +95,7 @@ public class Parser {
         return new ParseNode.LineThrough(pair);
     }
 
+    /** {@code BUILD} — спільний префікс для трьох різних речень. */
     private ParseNode parseBuild() {
         expect(TokenType.BUILD);
         Token next = peek();
@@ -93,7 +107,7 @@ public class Parser {
         throw new ParseException(next, "Очікувався ПЕРПЕНДИКУЛЯР, ТРИКУТНИК або ВІДРІЗОК");
     }
 
-    /** <перпендикуляр> ::= ПОБУДУВАТИ ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ ( <пара_імен> ) В ТОЧЦІ <ім'я> */
+    /** {@code <перпендикуляр> ::= … ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ ( <пара_імен> ) В ТОЧЦІ <ім'я>} */
     private ParseNode.Perpendicular parsePerpendicular() {
         expect(TokenType.PERPENDICULAR);
         expect(TokenType.TO);
@@ -107,7 +121,7 @@ public class Parser {
         return new ParseNode.Perpendicular(base, target);
     }
 
-    /** <трикутник> ::= ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ <список_імен> */
+    /** {@code <трикутник> ::= … ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ <список_імен>} */
     private ParseNode.Triangle parseTriangle() {
         expect(TokenType.TRIANGLE);
         expect(TokenType.BY);
@@ -117,7 +131,7 @@ public class Parser {
         return new ParseNode.Triangle(vertices);
     }
 
-    /** <відрізок> ::= ПОБУДУВАТИ ВІДРІЗОК ВІД <ім'я> ДО <ім'я> */
+    /** {@code <відрізок> ::= … ВІДРІЗОК ВІД <ім'я> ДО <ім'я>} */
     private ParseNode.Segment parseSegment() {
         expect(TokenType.SEGMENT);
         expect(TokenType.FROM);
@@ -127,7 +141,7 @@ public class Parser {
         return new ParseNode.Segment(from, to);
     }
 
-    /** <список_імен> ::= <ім'я> <продовження_імен> */
+    /** {@code <список_імен> ::= <ім'я> <продовження_імен>} */
     private ParseNode.NameList parseNameList() {
         List<ParseNode.Name> names = new ArrayList<>();
         names.add(parseName());
@@ -135,7 +149,7 @@ public class Parser {
         return new ParseNode.NameList(names);
     }
 
-    /** <продовження_імен> ::= , <список_імен> | <пусто> */
+    /** {@code <продовження_імен> ::= , <список_імен> | <пусто>} */
     private List<ParseNode.Name> parseNameListTail() {
         if (peek().type() == TokenType.COMMA) {
             advance();
@@ -144,7 +158,7 @@ public class Parser {
         return List.of();
     }
 
-    /** <пара_імен> ::= <ім'я> , <ім'я> (кома — наше свідоме відхилення від буквального тексту методички) */
+    /** {@code <пара_імен> ::= <ім'я> , <ім'я>} (кома — наше свідоме відхилення від методички). */
     private ParseNode.NamePair parseNamePair() {
         ParseNode.Name a = parseName();
         expect(TokenType.COMMA);
@@ -152,21 +166,19 @@ public class Parser {
         return new ParseNode.NamePair(a, b);
     }
 
-    /** <ім'я> ::= IDENTIFIER */
+    /** {@code <ім'я> ::= IDENTIFIER} */
     private ParseNode.Name parseName() {
         Token token = expect(TokenType.IDENTIFIER);
         return new ParseNode.Name(token);
     }
 
-    /** <число> ::= NUMBER */
+    /** {@code <число> ::= NUMBER} */
     private ParseNode.NumberLit parseNumberLit() {
         Token token = expect(TokenType.NUMBER);
         return new ParseNode.NumberLit(token);
     }
 
-    private Token peek() {
-        return tokens.get(pos);
-    }
+    private Token peek() { return tokens.get(pos); }
 
     private Token advance() {
         Token token = tokens.get(pos);

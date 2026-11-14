@@ -13,9 +13,31 @@ import sema.GeometryModel;
 import sema.SemanticAnalyzer;
 import sema.SemanticException;
 
-// List входить до неявного набору java.util.* цього режиму (unnamed class, JEP 495) —
-// явний імпорт не додаю, як і в решті файлу (Files, Path, IOException теж неявні).
-
+/**
+ * Точка входу транслятора геометричної DSL.
+ *
+ * <p>Організовує повний конвеєр обробки вхідного файлу:
+ * <ol>
+ *   <li>{@link Lexer} — розбиття тексту на токени;</li>
+ *   <li>{@link Parser} — побудова дерева синтаксичного розбору
+ *       {@link ParseNode.Program};</li>
+ *   <li>{@link TreeFolder} — згортання дерева у спрощене AST
+ *       {@link Stmt.Program};</li>
+ *   <li>{@link SemanticAnalyzer} — семантична перевірка і побудова
+ *       {@link GeometryModel};</li>
+ *   <li>{@link CodeGenerator} — генерація команд {@link GraphicsCommand};</li>
+ *   <li>{@link Renderer} — малювання через Java2D і збереження PNG.</li>
+ * </ol>
+ *
+ * <p>Використання: {@code java Main [input.geo] [output.png] [--tree]}.
+ * Перші два аргументи — необов'язкові (за замовчуванням {@code input.geo}
+ * і {@code output.png}). Прапорець {@code --tree} друкує дерево
+ * синтаксичного розбору перед семантичним аналізом — зручно для
+ * демонстрації стадії побудови дерева.
+ *
+ * <p>Помилки всіх етапів ловляться тут і друкуються в stderr; у разі
+ * успіху в stdout виводиться шлях до збереженого PNG.
+ */
 void main(String[] args) {
     String inputPath = "input.geo";
     String outputPath = "output.png";
