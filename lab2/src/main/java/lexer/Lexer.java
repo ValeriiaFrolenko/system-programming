@@ -10,7 +10,6 @@ import java.util.Map;
 public class Lexer {
     private static final Map<String, TokenType> EXACT_WORDS = new HashMap<>();
     private static final Map<String, TokenType> STEM_WORDS = new LinkedHashMap<>();
-    private static final Map<String, List<String>> VALID_ENDINGS = new HashMap<>();
 
     static {
         EXACT_WORDS.put("В", TokenType.AT);
@@ -29,26 +28,25 @@ public class Lexer {
         STEM_WORDS.put("ТОЧК", TokenType.POINT);
         STEM_WORDS.put("ПРЯМ", TokenType.LINE);
         STEM_WORDS.put("ВІДРІЗ", TokenType.SEGMENT);
-
-        VALID_ENDINGS.put("ПЕРПЕНДИКУЛЯР", List.of("", "А", "У", "И", "ОМ", "І"));
-        VALID_ENDINGS.put("ТРИКУТНИК", List.of("", "А", "У", "И", "ІВ", "АМ", "АХ"));
-        VALID_ENDINGS.put("ПОБУДУВА", List.of("ТИ"));
-        VALID_ENDINGS.put("ПРОВЕСТ", List.of("И"));
-        VALID_ENDINGS.put("ВЕРШИН", List.of("А", "И", "І", "АМ", "АХ", "АМИ", "ОЮ"));
-        VALID_ENDINGS.put("ТРЬОМ", List.of(""));
-        VALID_ENDINGS.put("ТОЧЦ", List.of("І"));
-        VALID_ENDINGS.put("ТОЧК", List.of("А", "И", "У", "ОЮ", "АМ", "АХ", "АМИ"));
-        VALID_ENDINGS.put("ПРЯМ", List.of("А", "У", "ОЇ", "ІЙ", "ИМИ", "ИХ"));
-        VALID_ENDINGS.put("ВІДРІЗ", List.of("ОК", "КА", "КУ", "КИ", "КОМ", "КАМИ", "КАХ"));
     }
 
     private final String source;
+    private final SymbolTable symbolTable;
     private int pos = 0;
     private int line = 1;
     private int column = 1;
 
     public Lexer(String source) {
+        this(source, new SymbolTable());
+    }
+
+    public Lexer(String source, SymbolTable symbolTable) {
         this.source = source;
+        this.symbolTable = symbolTable;
+    }
+
+    public SymbolTable symbolTable() {
+        return symbolTable;
     }
 
     public List<Token> tokenize() {
@@ -71,6 +69,8 @@ public class Lexer {
         if (c == '(') { advance(); return new Token(TokenType.LPAREN, "(", startLine, startCol); }
         if (c == ')') { advance(); return new Token(TokenType.RPAREN, ")", startLine, startCol); }
         if (c == ',') { advance(); return new Token(TokenType.COMMA, ",", startLine, startCol); }
+        if (c == ';') { advance(); return new Token(TokenType.SEMICOLON, ";", startLine, startCol); }
+        if (c == '#') { advance(); return new Token(TokenType.END, "#", startLine, startCol); }
         if (Character.isDigit(c) || c == '-' || c == '+') return readNumber();
         if (Character.isLetter(c)) return readWordOrIdentifier();
 
@@ -84,9 +84,9 @@ public class Lexer {
 
         if (peek() == '-' || peek() == '+') advance();
         if (!Character.isDigit(peek())) throw new LexException(startLine, startCol, "Очікувалась цифра");
-        
+
         while (Character.isDigit(peek())) advance();
-        
+
         if (peek() == '.') {
             advance();
             if (!Character.isDigit(peek())) throw new LexException(startLine, startCol, "Очікувалась цифра після десяткової точки");
@@ -113,14 +113,14 @@ public class Lexer {
         for (Map.Entry<String, TokenType> entry : STEM_WORDS.entrySet()) {
             String stem = entry.getKey();
             if (upper.startsWith(stem)) {
-                String ending = upper.substring(stem.length());
-                if (VALID_ENDINGS.get(stem).contains(ending)) {
-                    return new Token(entry.getValue(), text, startLine, startCol);
-                }
+                return new Token(entry.getValue(), text, startLine, startCol);
             }
         }
 
-        if (isLatin(text)) return new Token(TokenType.IDENTIFIER, text, startLine, startCol);
+        if (isLatin(text)) {
+            int code = symbolTable.codeFor(upper);
+            return new Token(TokenType.IDENTIFIER, text, startLine, startCol, code);
+        }
 
         throw new LexException(startLine, startCol, "Невідоме слово: '" + text + "'");
     }
