@@ -1,7 +1,5 @@
 package render;
 
-import sema.GeometryModel;
-
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.geom.Line2D;
@@ -12,18 +10,25 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Виконавець команд графічного пакета. Не знає нічого про геометричну
+ * семантику (трикутники, перпендикуляри, прямі через точки тощо) —
+ * лише вміє намалювати чотири примітиви з {@link GraphicsCommand}:
+ * точку, відрізок, нескінченну пряму і многокутник. Масштабування і
+ * обрізання нескінченних ліній по межах вікна (Viewport) — це його
+ * власна відповідальність виконавця, а не генератора команд.
+ */
 public class Renderer {
     private static final int WIDTH = 800;
     private static final int HEIGHT = 600;
     private static final int PADDING = 50;
 
     private static final Color COLOR_POINT = Color.BLACK;
-    private static final Color COLOR_LINE = new Color(0, 100, 200);
-    private static final Color COLOR_PERP = new Color(220, 50, 50);
-    private static final Color COLOR_TRIANGLE = new Color(50, 180, 50);
+    private static final Color COLOR_INFINITE_LINE = new Color(0, 100, 200);
+    private static final Color COLOR_POLYGON = new Color(50, 180, 50);
     private static final Color COLOR_SEGMENT = new Color(255, 140, 0);
 
-    public void render(GeometryModel model, String outputPath) throws IOException {
+    public void render(List<GraphicsCommand> commands, String outputPath) throws IOException {
         BufferedImage image = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = image.createGraphics();
 
@@ -34,50 +39,64 @@ public class Renderer {
         g.fillRect(0, 0, WIDTH, HEIGHT);
         g.setStroke(new BasicStroke(2f));
 
-        Viewport vp = new Viewport(model, WIDTH, HEIGHT, PADDING);
+        Viewport vp = new Viewport(commands, WIDTH, HEIGHT, PADDING);
 
-        g.setColor(COLOR_TRIANGLE);
-        for (GeometryModel.Triangle t : model.triangles()) {
-            int[] xs = {vp.toScreenX(t.a().x()), vp.toScreenX(t.b().x()), vp.toScreenX(t.c().x())};
-            int[] ys = {vp.toScreenY(t.a().y()), vp.toScreenY(t.b().y()), vp.toScreenY(t.c().y())};
-            g.drawPolygon(xs, ys, 3);
+        // Порядок малювання: полігони і відрізки спершу, нескінченні
+        // прямі поверх них, точки з підписами останніми — щоб підписи
+        // не ховались під лініями.
+        for (GraphicsCommand cmd : commands) {
+            if (cmd instanceof GraphicsCommand.DrawPolygon p) drawPolygon(g, vp, p);
         }
-
-        g.setColor(COLOR_SEGMENT);
-        for (GeometryModel.Segment s : model.segments()) {
-            g.drawLine(vp.toScreenX(s.start().x()), vp.toScreenY(s.start().y()), vp.toScreenX(s.end().x()), vp.toScreenY(s.end().y()));
+        for (GraphicsCommand cmd : commands) {
+            if (cmd instanceof GraphicsCommand.DrawSegment s) drawSegment(g, vp, s);
         }
-
-        g.setColor(COLOR_LINE);
-        for (GeometryModel.Line l : model.lines()) {
-            drawInfiniteLine(g, vp, l.a().x(), l.a().y(), l.b().x() - l.a().x(), l.b().y() - l.a().y());
+        for (GraphicsCommand cmd : commands) {
+            if (cmd instanceof GraphicsCommand.DrawInfiniteLine l) drawInfiniteLine(g, vp, l);
         }
-
-        g.setColor(COLOR_PERP);
-        for (GeometryModel.Perpendicular p : model.perpendiculars()) {
-            double dx = p.baseB().x() - p.baseA().x();
-            double dy = p.baseB().y() - p.baseA().y();
-            drawInfiniteLine(g, vp, p.target().x(), p.target().y(), -dy, dx);
-        }
-
-        g.setColor(COLOR_POINT);
-        g.setFont(new Font("Arial", Font.BOLD, 16));
-        for (GeometryModel.Point p : model.points().values()) {
-            int x = vp.toScreenX(p.x());
-            int y = vp.toScreenY(p.y());
-            g.fillOval(x - 4, y - 4, 8, 8);
-            g.drawString(p.name(), x + 8, y - 8);
+        for (GraphicsCommand cmd : commands) {
+            if (cmd instanceof GraphicsCommand.DrawPoint p) drawPoint(g, vp, p);
         }
 
         g.dispose();
         ImageIO.write(image, "png", new File(outputPath));
     }
 
-    private void drawInfiniteLine(Graphics2D g, Viewport vp, double x0, double y0, double dx, double dy) {
+    private void drawPolygon(Graphics2D g, Viewport vp, GraphicsCommand.DrawPolygon cmd) {
+        List<double[]> vertices = cmd.vertices();
+        int n = vertices.size();
+        int[] xs = new int[n];
+        int[] ys = new int[n];
+        for (int i = 0; i < n; i++) {
+            xs[i] = vp.toScreenX(vertices.get(i)[0]);
+            ys[i] = vp.toScreenY(vertices.get(i)[1]);
+        }
+        g.setColor(COLOR_POLYGON);
+        g.drawPolygon(xs, ys, n);
+    }
+
+    private void drawSegment(Graphics2D g, Viewport vp, GraphicsCommand.DrawSegment cmd) {
+        g.setColor(COLOR_SEGMENT);
+        g.drawLine(
+                vp.toScreenX(cmd.x1()), vp.toScreenY(cmd.y1()),
+                vp.toScreenX(cmd.x2()), vp.toScreenY(cmd.y2()));
+    }
+
+    private void drawPoint(Graphics2D g, Viewport vp, GraphicsCommand.DrawPoint cmd) {
+        int x = vp.toScreenX(cmd.x());
+        int y = vp.toScreenY(cmd.y());
+        g.setColor(COLOR_POINT);
+        g.setFont(new Font("Arial", Font.BOLD, 16));
+        g.fillOval(x - 4, y - 4, 8, 8);
+        g.drawString(cmd.label(), x + 8, y - 8);
+    }
+
+    private void drawInfiniteLine(Graphics2D g, Viewport vp, GraphicsCommand.DrawInfiniteLine cmd) {
+        double dx = cmd.dx();
+        double dy = cmd.dy();
         if (dx == 0 && dy == 0) return;
 
-        double sx0 = vp.toScreenXDouble(x0);
-        double sy0 = vp.toScreenYDouble(y0);
+        double sx0 = vp.toScreenXDouble(cmd.x0());
+        double sy0 = vp.toScreenYDouble(cmd.y0());
         double sdx = dx * vp.getScale();
         double sdy = -dy * vp.getScale();
 
@@ -103,6 +122,7 @@ public class Renderer {
             if (x4 >= 0 && x4 <= vp.getWidth()) intersections.add(new Point2D.Double(x4, vp.getHeight()));
         }
 
+        g.setColor(COLOR_INFINITE_LINE);
         if (intersections.size() >= 2) {
             g.draw(new Line2D.Double(intersections.get(0), intersections.get(intersections.size() - 1)));
         }

@@ -1,12 +1,22 @@
 package parser;
 
-import ast.Stmt;
+import ast.ParseNode;
 import lexer.Token;
 import lexer.TokenType;
 
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Низхідний синтаксичний аналізатор (метод рекурсивного спуску).
+ * Будує дерево синтаксичного розбору {@link ParseNode} за граматикою:
+ *
+ * <текст>            ::= <список_речень> #
+ * <список_речень>    ::= <речення> <продовження_списку>
+ * <продовження_списку> ::= ; <список_речень> | <пусто>
+ * <речення>          ::= <точка> | <пряма_через> | <перпендикуляр>
+ *                       | <трикутник> | <відрізок>
+ */
 public class Parser {
     private final List<Token> tokens;
     private int pos = 0;
@@ -15,99 +25,153 @@ public class Parser {
         this.tokens = tokens;
     }
 
-    public Stmt.Program parse() {
-        List<Stmt> statements = new ArrayList<>();
-        while (!isAtEnd()) {
-            statements.add(parseStatement());
-        }
-        return new Stmt.Program(statements);
+    public ParseNode.Program parse() {
+        List<ParseNode.Sentence> sentences = parseSentenceList();
+        expect(TokenType.END);
+        expect(TokenType.EOF);
+        return new ParseNode.Program(sentences);
     }
 
-    private Stmt parseStatement() {
+    /** <список_речень> ::= <речення> <продовження_списку> */
+    private List<ParseNode.Sentence> parseSentenceList() {
+        List<ParseNode.Sentence> sentences = new ArrayList<>();
+        sentences.add(parseSentence());
+        sentences.addAll(parseSentenceListTail());
+        return sentences;
+    }
+
+    /** <продовження_списку> ::= ; <список_речень> | <пусто> */
+    private List<ParseNode.Sentence> parseSentenceListTail() {
+        if (peek().type() == TokenType.SEMICOLON) {
+            advance();
+            return parseSentenceList();
+        }
+        return List.of();
+    }
+
+    /** <речення> ::= <точка> | <пряма_через> | <перпендикуляр> | <трикутник> | <відрізок> */
+    private ParseNode.Sentence parseSentence() {
         Token token = peek();
-        return switch (token.type()) {
-            case POINT -> parsePoint();
+        ParseNode body = switch (token.type()) {
+            case POINT -> parsePointDecl();
             case DRAW -> parseLineThrough();
             case BUILD -> parseBuild();
-            default -> throw new ParseException(token, "Очікувався початок команди");
+            default -> throw new ParseException(token, "Очікувався початок речення");
         };
+        return new ParseNode.Sentence(body);
     }
 
-    private Stmt.PointDecl parsePoint() {
+    /** <точка> ::= ТОЧКА <ім'я> ( <число> , <число> ) */
+    private ParseNode.PointDecl parsePointDecl() {
         expect(TokenType.POINT);
-        String name = expect(TokenType.IDENTIFIER).text();
+        ParseNode.Name name = parseName();
         expect(TokenType.LPAREN);
-        double x = parseNumber();
+        ParseNode.NumberLit x = parseNumberLit();
         expect(TokenType.COMMA);
-        double y = parseNumber();
+        ParseNode.NumberLit y = parseNumberLit();
         expect(TokenType.RPAREN);
-        return new Stmt.PointDecl(name, x, y);
+        return new ParseNode.PointDecl(name, x, y);
     }
 
-    private Stmt.LineThrough parseLineThrough() {
+    /** <пряма_через> ::= ПРОВЕСТИ ПРЯМУ ЧЕРЕЗ <пара_імен> */
+    private ParseNode.LineThrough parseLineThrough() {
         expect(TokenType.DRAW);
         expect(TokenType.LINE);
         expect(TokenType.THROUGH);
-        String a = expect(TokenType.IDENTIFIER).text();
-        expect(TokenType.COMMA);
-        String b = expect(TokenType.IDENTIFIER).text();
-        return new Stmt.LineThrough(a, b);
+        ParseNode.NamePair pair = parseNamePair();
+        return new ParseNode.LineThrough(pair);
     }
 
-    private Stmt parseBuild() {
+    private ParseNode parseBuild() {
         expect(TokenType.BUILD);
         Token next = peek();
 
         if (next.type() == TokenType.PERPENDICULAR) return parsePerpendicular();
         if (next.type() == TokenType.TRIANGLE) return parseTriangle();
         if (next.type() == TokenType.SEGMENT) return parseSegment();
-        
+
         throw new ParseException(next, "Очікувався ПЕРПЕНДИКУЛЯР, ТРИКУТНИК або ВІДРІЗОК");
     }
 
-    private Stmt.Perpendicular parsePerpendicular() {
+    /** <перпендикуляр> ::= ПОБУДУВАТИ ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ ( <пара_імен> ) В ТОЧЦІ <ім'я> */
+    private ParseNode.Perpendicular parsePerpendicular() {
         expect(TokenType.PERPENDICULAR);
         expect(TokenType.TO);
         expect(TokenType.LINE);
         expect(TokenType.LPAREN);
-        String baseA = expect(TokenType.IDENTIFIER).text();
-        expect(TokenType.COMMA);
-        String baseB = expect(TokenType.IDENTIFIER).text();
+        ParseNode.NamePair base = parseNamePair();
         expect(TokenType.RPAREN);
         expect(TokenType.AT);
         expect(TokenType.POINT_LOC);
-        String target = expect(TokenType.IDENTIFIER).text();
-        return new Stmt.Perpendicular(baseA, baseB, target);
+        ParseNode.Name target = parseName();
+        return new ParseNode.Perpendicular(base, target);
     }
 
-    private Stmt.Triangle parseTriangle() {
+    /** <трикутник> ::= ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ <список_імен> */
+    private ParseNode.Triangle parseTriangle() {
         expect(TokenType.TRIANGLE);
         expect(TokenType.BY);
         expect(TokenType.THREE);
         expect(TokenType.VERTEX);
-        String a = expect(TokenType.IDENTIFIER).text();
-        expect(TokenType.COMMA);
-        String b = expect(TokenType.IDENTIFIER).text();
-        expect(TokenType.COMMA);
-        String c = expect(TokenType.IDENTIFIER).text();
-        return new Stmt.Triangle(a, b, c);
+        ParseNode.NameList vertices = parseNameList();
+        return new ParseNode.Triangle(vertices);
     }
 
-    private Stmt.Segment parseSegment() {
+    /** <відрізок> ::= ПОБУДУВАТИ ВІДРІЗОК ВІД <ім'я> ДО <ім'я> */
+    private ParseNode.Segment parseSegment() {
         expect(TokenType.SEGMENT);
         expect(TokenType.FROM);
-        String a = expect(TokenType.IDENTIFIER).text();
+        ParseNode.Name from = parseName();
         expect(TokenType.TO);
-        String b = expect(TokenType.IDENTIFIER).text();
-        return new Stmt.Segment(a, b);
+        ParseNode.Name to = parseName();
+        return new ParseNode.Segment(from, to);
     }
 
-    private double parseNumber() {
-        return Double.parseDouble(expect(TokenType.NUMBER).text());
+    /** <список_імен> ::= <ім'я> <продовження_імен> */
+    private ParseNode.NameList parseNameList() {
+        List<ParseNode.Name> names = new ArrayList<>();
+        names.add(parseName());
+        names.addAll(parseNameListTail());
+        return new ParseNode.NameList(names);
+    }
+
+    /** <продовження_імен> ::= , <список_імен> | <пусто> */
+    private List<ParseNode.Name> parseNameListTail() {
+        if (peek().type() == TokenType.COMMA) {
+            advance();
+            return parseNameList().names();
+        }
+        return List.of();
+    }
+
+    /** <пара_імен> ::= <ім'я> , <ім'я> (кома — наше свідоме відхилення від буквального тексту методички) */
+    private ParseNode.NamePair parseNamePair() {
+        ParseNode.Name a = parseName();
+        expect(TokenType.COMMA);
+        ParseNode.Name b = parseName();
+        return new ParseNode.NamePair(a, b);
+    }
+
+    /** <ім'я> ::= IDENTIFIER */
+    private ParseNode.Name parseName() {
+        Token token = expect(TokenType.IDENTIFIER);
+        return new ParseNode.Name(token);
+    }
+
+    /** <число> ::= NUMBER */
+    private ParseNode.NumberLit parseNumberLit() {
+        Token token = expect(TokenType.NUMBER);
+        return new ParseNode.NumberLit(token);
     }
 
     private Token peek() {
         return tokens.get(pos);
+    }
+
+    private Token advance() {
+        Token token = tokens.get(pos);
+        pos++;
+        return token;
     }
 
     private Token expect(TokenType type) {
@@ -117,9 +181,5 @@ public class Parser {
         }
         pos++;
         return token;
-    }
-
-    private boolean isAtEnd() {
-        return peek().type() == TokenType.EOF;
     }
 }

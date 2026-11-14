@@ -1,9 +1,13 @@
 package render;
 
-import sema.GeometryModel;
+import java.util.List;
 
-import java.util.Collection;
-
+/**
+ * Відповідає за масштабування математичних координат у піксельні.
+ * Межі (bounding box) обчислюються з самих команд малювання, а не з
+ * геометричної моделі — Viewport лишається частиною виконавця
+ * (Renderer), генератор команд про нього нічого не знає.
+ */
 public class Viewport {
     private final int width;
     private final int height;
@@ -11,25 +15,46 @@ public class Viewport {
     private final double offsetX;
     private final double offsetY;
 
-    public Viewport(GeometryModel model, int width, int height, int padding) {
+    public Viewport(List<GraphicsCommand> commands, int width, int height, int padding) {
         this.width = width;
         this.height = height;
 
-        Collection<GeometryModel.Point> points = model.points().values();
-        if (points.isEmpty()) {
+        double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
+        double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+        boolean any = false;
+
+        for (GraphicsCommand cmd : commands) {
+            if (cmd instanceof GraphicsCommand.DrawPoint p) {
+                minX = Math.min(minX, p.x()); maxX = Math.max(maxX, p.x());
+                minY = Math.min(minY, p.y()); maxY = Math.max(maxY, p.y());
+                any = true;
+            } else if (cmd instanceof GraphicsCommand.DrawSegment s) {
+                minX = Math.min(minX, Math.min(s.x1(), s.x2()));
+                maxX = Math.max(maxX, Math.max(s.x1(), s.x2()));
+                minY = Math.min(minY, Math.min(s.y1(), s.y2()));
+                maxY = Math.max(maxY, Math.max(s.y1(), s.y2()));
+                any = true;
+            } else if (cmd instanceof GraphicsCommand.DrawPolygon poly) {
+                for (double[] v : poly.vertices()) {
+                    minX = Math.min(minX, v[0]); maxX = Math.max(maxX, v[0]);
+                    minY = Math.min(minY, v[1]); maxY = Math.max(maxY, v[1]);
+                }
+                any = true;
+            } else if (cmd instanceof GraphicsCommand.DrawInfiniteLine l) {
+                // Точка проходження нескінченної прямої теж бере участь
+                // у визначенні масштабу — щоб пряма потрапила в кадр
+                // разом з рештою об'єктів.
+                minX = Math.min(minX, l.x0()); maxX = Math.max(maxX, l.x0());
+                minY = Math.min(minY, l.y0()); maxY = Math.max(maxY, l.y0());
+                any = true;
+            }
+        }
+
+        if (!any) {
             this.scale = 1.0;
             this.offsetX = padding;
             this.offsetY = height - padding;
             return;
-        }
-
-        double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
-        double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
-        for (GeometryModel.Point p : points) {
-            minX = Math.min(minX, p.x());
-            maxX = Math.max(maxX, p.x());
-            minY = Math.min(minY, p.y());
-            maxY = Math.max(maxY, p.y());
         }
 
         double rangeX = maxX - minX;

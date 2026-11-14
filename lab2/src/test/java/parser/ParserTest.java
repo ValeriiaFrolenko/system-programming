@@ -1,19 +1,37 @@
 package parser;
 
+import ast.ParseNode;
 import ast.Stmt;
 import lexer.Lexer;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ParserTest {
-    private static Stmt.Program parse(String source) {
+
+    private static ParseNode.Program parseTree(String sourceWithoutEnd) {
+        String source = sourceWithoutEnd + " #";
         return new Parser(new Lexer(source).tokenize()).parse();
     }
 
+    private static Stmt.Program parseStmt(String sourceWithoutEnd) {
+        return new TreeFolder().fold(parseTree(sourceWithoutEnd));
+    }
+
     @Test
-    void parsesPointDecl() {
-        Stmt.Program program = parse("ТОЧКА A (1.5, -2)");
-        assertEquals(1, program.statements().size());
+    void parsesPointDeclTree() {
+        ParseNode.Program program = parseTree("ТОЧКА A (1.5, -2)");
+        assertEquals(1, program.sentences().size());
+        ParseNode.Sentence sentence = program.sentences().getFirst();
+        assertInstanceOf(ParseNode.PointDecl.class, sentence.body());
+        ParseNode.PointDecl point = (ParseNode.PointDecl) sentence.body();
+        assertEquals("A", point.name().token().text());
+        assertEquals("1.5", point.x().token().text());
+        assertEquals("-2", point.y().token().text());
+    }
+
+    @Test
+    void parsesPointDeclStmt() {
+        Stmt.Program program = parseStmt("ТОЧКА A (1.5, -2)");
         Stmt.PointDecl point = (Stmt.PointDecl) program.statements().getFirst();
         assertEquals("A", point.name());
         assertEquals(1.5, point.x());
@@ -21,16 +39,16 @@ class ParserTest {
     }
 
     @Test
-    void parsesLineThrough() {
-        Stmt.Program program = parse("ПРОВЕСТИ ПРЯМУ ЧЕРЕЗ A, B");
+    void parsesLineThroughStmt() {
+        Stmt.Program program = parseStmt("ПРОВЕСТИ ПРЯМУ ЧЕРЕЗ A, B");
         Stmt.LineThrough line = (Stmt.LineThrough) program.statements().getFirst();
         assertEquals("A", line.a());
         assertEquals("B", line.b());
     }
 
     @Test
-    void parsesPerpendicular() {
-        Stmt.Program program = parse("ПОБУДУВАТИ ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ (A, B) В ТОЧЦІ C");
+    void parsesPerpendicularStmt() {
+        Stmt.Program program = parseStmt("ПОБУДУВАТИ ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ (A, B) В ТОЧЦІ C");
         Stmt.Perpendicular perp = (Stmt.Perpendicular) program.statements().getFirst();
         assertEquals("A", perp.baseA());
         assertEquals("B", perp.baseB());
@@ -38,8 +56,8 @@ class ParserTest {
     }
 
     @Test
-    void parsesTriangle() {
-        Stmt.Program program = parse("ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C");
+    void parsesTriangleStmt() {
+        Stmt.Program program = parseStmt("ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C");
         Stmt.Triangle triangle = (Stmt.Triangle) program.statements().getFirst();
         assertEquals("A", triangle.a());
         assertEquals("B", triangle.b());
@@ -47,25 +65,25 @@ class ParserTest {
     }
 
     @Test
-    void parsesSegment() {
-        Stmt.Program program = parse("ПОБУДУВАТИ ВІДРІЗОК ВІД A ДО B");
+    void parsesSegmentStmt() {
+        Stmt.Program program = parseStmt("ПОБУДУВАТИ ВІДРІЗОК ВІД A ДО B");
         Stmt.Segment seg = (Stmt.Segment) program.statements().getFirst();
         assertEquals("A", seg.a());
         assertEquals("B", seg.b());
     }
 
     @Test
-    void parsesFullProgram() {
+    void parsesFullProgramWithSemicolons() {
         String source = """
-                ТОЧКА A (1, 2)
-                ТОЧКА B (5, 2)
-                ТОЧКА C (3, 5)
-                ПРОВЕСТИ ПРЯМУ ЧЕРЕЗ A, B
-                ПОБУДУВАТИ ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ (A, B) В ТОЧЦІ C
-                ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C
+                ТОЧКА A (1, 2);
+                ТОЧКА B (5, 2);
+                ТОЧКА C (3, 5);
+                ПРОВЕСТИ ПРЯМУ ЧЕРЕЗ A, B;
+                ПОБУДУВАТИ ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ (A, B) В ТОЧЦІ C;
+                ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C;
                 ПОБУДУВАТИ ВІДРІЗОК ВІД A ДО B
                 """;
-        Stmt.Program program = parse(source);
+        Stmt.Program program = parseStmt(source);
         assertEquals(7, program.statements().size());
         assertInstanceOf(Stmt.PointDecl.class, program.statements().get(0));
         assertInstanceOf(Stmt.LineThrough.class, program.statements().get(3));
@@ -75,17 +93,53 @@ class ParserTest {
     }
 
     @Test
-    void throwsOnMissingComma() {
-        assertThrows(ParseException.class, () -> parse("ТОЧКА A (1 2)"));
+    void nameListCarriesAllNamesInParseTree() {
+        ParseNode.Program program = parseTree("ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C");
+        ParseNode.Triangle triangle = (ParseNode.Triangle) program.sentences().getFirst().body();
+        assertEquals(3, triangle.vertices().names().size());
     }
 
     @Test
-    void throwsOnInvalidCommandStart() {
-        assertThrows(ParseException.class, () -> parse("ПРЯМУ ЧЕРЕЗ A, B"));
+    void nonTerminalsCarryExpectedCodes() {
+        ParseNode.Program program = parseTree("ТОЧКА A (1, 2)");
+        assertEquals(ParseNode.Program.CODE, program.code());
+        ParseNode.Sentence sentence = program.sentences().getFirst();
+        assertEquals(ParseNode.Sentence.CODE, sentence.code());
+        assertEquals(ParseNode.PointDecl.CODE, sentence.body().code());
+    }
+
+    @Test
+    void throwsOnMissingComma() {
+        assertThrows(ParseException.class, () -> parseTree("ТОЧКА A (1 2)"));
+    }
+
+    @Test
+    void throwsOnInvalidSentenceStart() {
+        assertThrows(ParseException.class, () -> parseTree("ПРЯМУ ЧЕРЕЗ A, B"));
     }
 
     @Test
     void throwsOnIncompleteBuild() {
-        assertThrows(ParseException.class, () -> parse("ПОБУДУВАТИ ТРИКУТНИК"));
+        assertThrows(ParseException.class, () -> parseTree("ПОБУДУВАТИ ТРИКУТНИК"));
+    }
+
+    @Test
+    void throwsWhenMissingEndMarker() {
+        String source = "ТОЧКА A (1, 2)"; // без #
+        assertThrows(ParseException.class,
+                () -> new Parser(new Lexer(source).tokenize()).parse());
+    }
+
+    @Test
+    void throwsWhenMissingSemicolonBetweenSentences() {
+        String source = "ТОЧКА A (1, 2) ТОЧКА B (3, 4) #";
+        assertThrows(ParseException.class,
+                () -> new Parser(new Lexer(source).tokenize()).parse());
+    }
+
+    @Test
+    void throwsOnTriangleWithWrongVertexCount() {
+        assertThrows(ParseException.class,
+                () -> parseStmt("ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B"));
     }
 }

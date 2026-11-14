@@ -126,16 +126,52 @@ class LexerTest {
     }
 
     @Test
-    void throwsOnUnknownWord() {
-        assertThrows(LexException.class, () -> tokenize("ПОБУДУВАННЯ"));
-        assertThrows(LexException.class, () -> tokenize("ВІДСТАНЬ"));
-        assertThrows(LexException.class, () -> tokenize("ТОЧКОВИЙ"));
-        assertThrows(LexException.class, () -> tokenize("ПРЯМИЙ"));
+    void recognizesSemicolonAndEndMarkers() {
+        List<Token> tokens = tokenize("ТОЧКА A (1, 2); ТОЧКА B (3, 4) #");
+        assertEquals(TokenType.SEMICOLON, tokens.get(7).type());
+        assertEquals(TokenType.END, tokens.get(tokens.size() - 2).type());
+        assertEquals(TokenType.EOF, tokens.getLast().type());
+    }
+
+    @Test
+    void assignsStableIdentifierCodes() {
+        List<Token> tokens = tokenize("ТОЧКА A (1, 2); ПРОВЕСТИ ПРЯМУ ЧЕРЕЗ A, B #");
+        Token firstA = tokens.get(1);
+        Token secondA = tokens.stream()
+                .filter(t -> t.type() == TokenType.IDENTIFIER && t.text().equals("A"))
+                .reduce((a, b) -> b)
+                .orElseThrow();
+        Token b = tokens.stream()
+                .filter(t -> t.type() == TokenType.IDENTIFIER && t.text().equals("B"))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(firstA.code(), secondA.code());
+        assertNotEquals(firstA.code(), b.code());
+    }
+
+    @Test
+    void acceptsMorphologicalLookalikesWithoutEndingCheck() {
+        // Узгоджено: VALID_ENDINGS прибрано, перевірки закінчень більше немає.
+        // Будь-яке слово, що починається на відомий стем, стає відповідним
+        // токеном — навіть якщо це інше слово української мови, а не форма
+        // тієї самої лексеми. Для наших вхідних файлів це не проблема.
+        assertEquals(TokenType.BUILD, tokenize("ПОБУДУВАННЯ").getFirst().type());
+        assertEquals(TokenType.POINT, tokenize("ТОЧКОВИЙ").getFirst().type());
+        assertEquals(TokenType.LINE, tokenize("ПРЯМИЙ").getFirst().type());
     }
 
     @Test
     void throwsOnUnknownCharacter() {
         assertThrows(LexException.class, () -> tokenize("ТОЧКА @"));
+    }
+
+    @Test
+    void throwsOnWordMatchingNoStem() {
+        // "ВІДСТАНЬ" не починається на жоден із зареєстрованих стемів
+        // (ВІДРІЗ — найближчий, але не є префіксом) і не є латиницею,
+        // тож лишається єдиним реалістичним шляхом досі отримати LexException.
+        assertThrows(LexException.class, () -> tokenize("ВІДСТАНЬ"));
     }
 
     @Test
@@ -148,13 +184,14 @@ class LexerTest {
     @Test
     void tokenizesFullProgram() {
         String program = """
-                ТОЧКА A (1, 2)
-                ТОЧКА B (5, 2)
-                ТОЧКА C (3, 5)
-                ПРОВЕСТИ ПРЯМУ ЧЕРЕЗ A, B
-                ПОБУДУВАТИ ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ (A, B) В ТОЧЦІ C
-                ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C
+                ТОЧКА A (1, 2);
+                ТОЧКА B (5, 2);
+                ТОЧКА C (3, 5);
+                ПРОВЕСТИ ПРЯМУ ЧЕРЕЗ A, B;
+                ПОБУДУВАТИ ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ (A, B) В ТОЧЦІ C;
+                ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C;
                 ПОБУДУВАТИ ВІДРІЗОК ВІД A ДО B
+                #
                 """;
         List<Token> tokens = tokenize(program);
         assertNotNull(tokens);
