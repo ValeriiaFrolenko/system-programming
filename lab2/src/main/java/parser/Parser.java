@@ -100,12 +100,6 @@ public class Parser {
 
     /**
      * {@code <побудова> ::= ПОБУДУВАТИ <вид_побудови>}.
-     *
-     * <p>Це і є ліва факторизація: спільний префікс {@code ПОБУДУВАТИ}
-     * споживається тут, і лише після нього розгалуження йде за наступним
-     * токеном. Три різні типи {@link TokenType} ({@code PERPENDICULAR},
-     * {@code TRIANGLE}, {@code SEGMENT}) утворюють різні FIRST-множини,
-     * тому граматика лишається LL(1).
      */
     private ParseNode.Build parseBuild() {
         expect(TokenType.BUILD);
