@@ -165,7 +165,7 @@ public class Parser {
         return List.of();
     }
 
-    /** {@code <пара_імен> ::= <ім'я> , <ім'я>} (кома — наше свідоме відхилення від методички). */
+    /** {@code <пара_імен> ::= <ім'я> , <ім'я>} */
     private ParseNode.NamePair parseNamePair() {
         ParseNode.Name a = parseName();
         expect(TokenType.COMMA);
