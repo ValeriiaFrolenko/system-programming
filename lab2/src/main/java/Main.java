@@ -43,7 +43,7 @@ void main(String[] args) {
         String source = Files.readString(Path.of(inputPath), StandardCharsets.UTF_8);
         Translator translator = new Translator();
 
-        ParseNode.Program tree = translator.parse(source);
+        ParseNode tree = translator.parse(source);
         if (printTree) {
             IO.println(new ParseTreePrinter().print(tree));
         }

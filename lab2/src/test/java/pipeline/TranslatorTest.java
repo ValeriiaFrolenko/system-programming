@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.awt.image.BufferedImage;
 
+import static grammar.GeometryGrammar.PROGRAM;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TranslatorTest {
@@ -12,9 +13,10 @@ class TranslatorTest {
     private final Translator translator = new Translator();
 
     @Test
-    void parseProducesCstWithoutRendering() {
-        ParseNode.Program tree = translator.parse("ТОЧКА A (1, 2) #");
-        assertEquals(1, tree.sentences().size());
+    void parseProducesParseTreeWithoutRendering() {
+        ParseNode tree = translator.parse("ТОЧКА A (1, 2) #");
+        ParseNode.Branch root = assertInstanceOf(ParseNode.Branch.class, tree);
+        assertTrue(root.is(PROGRAM));
     }
 
     @Test
@@ -35,8 +37,8 @@ class TranslatorTest {
     }
 
     @Test
-    void renderReusesCstWithoutReparsing() {
-        ParseNode.Program tree = translator.parse("ТОЧКА A (0, 0) #");
+    void renderReusesParseTreeWithoutReparsing() {
+        ParseNode tree = translator.parse("ТОЧКА A (0, 0) #");
         BufferedImage image = translator.render(tree);
         assertNotNull(image);
     }

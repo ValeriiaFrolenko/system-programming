@@ -2,31 +2,100 @@ package parser;
 
 import ast.ParseNode;
 import ast.Stmt;
+import grammar.GeometryGrammar;
+import grammar.Grammar;
+import grammar.GrammarException;
+import grammar.NonTerminal;
+import grammar.Terminal;
 import lexer.Lexer;
+import lexer.Token;
+import lexer.TokenType;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
+import static grammar.GeometryGrammar.BUILD;
+import static grammar.GeometryGrammar.BUILD_KIND;
+import static grammar.GeometryGrammar.NAME;
+import static grammar.GeometryGrammar.NAME_LIST;
+import static grammar.GeometryGrammar.NAME_LIST_TAIL;
+import static grammar.GeometryGrammar.POINT_DECL;
+import static grammar.GeometryGrammar.PROGRAM;
+import static grammar.GeometryGrammar.SENTENCE;
+import static grammar.GeometryGrammar.SENTENCE_LIST;
+import static grammar.GeometryGrammar.SENTENCE_LIST_TAIL;
+import static grammar.GeometryGrammar.TRIANGLE;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ParserTest {
+    private static final Parser PARSER = new Parser(GeometryGrammar.grammar());
 
-    private static ParseNode.Program parseTree(String sourceWithoutEnd) {
-        String source = sourceWithoutEnd + " #";
-        return new Parser(new Lexer(source).tokenize()).parse();
+    private static ParseNode.Branch parseTree(String sourceWithoutEnd) {
+        List<Token> tokens = new Lexer(sourceWithoutEnd + " #").tokenize();
+        return assertInstanceOf(ParseNode.Branch.class, PARSER.parse(tokens));
     }
 
     private static Stmt.Program parseStmt(String sourceWithoutEnd) {
         return new TreeFolder().fold(parseTree(sourceWithoutEnd));
     }
 
+    private static List<TokenType> typesOf(ParseNode node) {
+        return node.tokens().stream().map(Token::type).toList();
+    }
+
     @Test
-    void parsesPointDeclTree() {
-        ParseNode.Program program = parseTree("ТОЧКА A (1.5, -2)");
-        assertEquals(1, program.sentences().size());
-        ParseNode.Sentence sentence = program.sentences().getFirst();
-        assertInstanceOf(ParseNode.PointDecl.class, sentence.body());
-        ParseNode.PointDecl point = (ParseNode.PointDecl) sentence.body();
-        assertEquals("A", point.name().token().text());
-        assertEquals("1.5", point.x().token().text());
-        assertEquals("-2", point.y().token().text());
+    void rootIsTheProgramNonTerminal() {
+        ParseNode.Branch root = parseTree("ТОЧКА A (1, 2)");
+        assertTrue(root.is(PROGRAM));
+        assertEquals(PROGRAM.code(), root.code());
+    }
+
+    @Test
+    void pointDeclTreeKeepsAllTokensInSourceOrder() {
+        ParseNode.Branch point = parseTree("ТОЧКА A (1.5, -2)")
+                .child(SENTENCE_LIST).child(SENTENCE).child(POINT_DECL);
+
+        assertEquals(List.of(TokenType.POINT, TokenType.IDENTIFIER, TokenType.LPAREN, TokenType.NUMBER,
+                TokenType.COMMA, TokenType.NUMBER, TokenType.RPAREN), typesOf(point));
+        assertEquals("A", point.tokens().get(1).text());
+        assertEquals("1.5", point.tokens().get(3).text());
+        assertEquals("-2", point.tokens().get(5).text());
+    }
+
+    @Test
+    void buildNestsItsKindUnderBuildKind() {
+        ParseNode.Branch triangle = parseTree("ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C")
+                .child(SENTENCE_LIST).child(SENTENCE).child(BUILD).child(BUILD_KIND).child(TRIANGLE);
+
+        assertTrue(triangle.findChild(NAME_LIST).isPresent());
+    }
+
+    @Test
+    void nameListIsRecursiveThroughItsTail() {
+        ParseNode.Branch nameList = parseTree("ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C")
+                .child(SENTENCE_LIST).child(SENTENCE).child(BUILD).child(BUILD_KIND)
+                .child(TRIANGLE).child(NAME_LIST);
+
+        assertTrue(nameList.findChild(NAME).isPresent());
+        assertTrue(nameList.child(NAME_LIST_TAIL).findChild(NAME_LIST).isPresent());
+    }
+
+    @Test
+    void lastTailIsAnEmptyBranch() {
+        ParseNode.Branch list = parseTree("ТОЧКА A (1, 2)").child(SENTENCE_LIST);
+        assertTrue(list.child(SENTENCE_LIST_TAIL).children().isEmpty());
+    }
+
+    @Test
+    void nonTerminalsCarryTheirCodes() {
+        ParseNode.Branch root = parseTree("ТОЧКА A (1, 2)");
+        ParseNode.Branch list = root.child(SENTENCE_LIST);
+        ParseNode.Branch sentence = list.child(SENTENCE);
+
+        assertEquals(0, root.code());
+        assertEquals(1, list.code());
+        assertEquals(3, sentence.code());
+        assertEquals(6, sentence.child(POINT_DECL).code());
     }
 
     @Test
@@ -93,39 +162,14 @@ class ParserTest {
     }
 
     @Test
-    void nameListCarriesAllNamesInParseTree() {
-        ParseNode.Program program = parseTree("ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C");
-        ParseNode.Build build = (ParseNode.Build) program.sentences().getFirst().body();
-        ParseNode.Triangle triangle = (ParseNode.Triangle) build.kind();
-        assertEquals(3, triangle.vertices().names().size());
-    }
-
-    @Test
-    void nonTerminalsCarryExpectedCodes() {
-        ParseNode.Program program = parseTree("ТОЧКА A (1, 2)");
-        assertEquals(ParseNode.Program.CODE, program.code());
-        assertEquals(ParseNode.SentenceList.CODE, program.sentenceList().code());
-        ParseNode.Sentence sentence = program.sentences().getFirst();
-        assertEquals(ParseNode.Sentence.CODE, sentence.code());
-        assertEquals(ParseNode.PointDecl.CODE, sentence.body().code());
-    }
-
-    @Test
-    void buildNodeCarriesExpectedCode() {
-        ParseNode.Program program = parseTree("ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C");
-        ParseNode.Build build = (ParseNode.Build) program.sentences().getFirst().body();
-        assertEquals(ParseNode.Build.CODE, build.code());
-        assertEquals(ParseNode.Triangle.CODE, build.kind().code());
-    }
-
-    @Test
     void throwsOnMissingComma() {
         assertThrows(ParseException.class, () -> parseTree("ТОЧКА A (1 2)"));
     }
 
     @Test
     void throwsOnInvalidSentenceStart() {
-        assertThrows(ParseException.class, () -> parseTree("ПРЯМУ ЧЕРЕЗ A, B"));
+        ParseException error = assertThrows(ParseException.class, () -> parseTree("ПРЯМУ ЧЕРЕЗ A, B"));
+        assertTrue(error.getMessage().contains("Expected one of"));
     }
 
     @Test
@@ -134,22 +178,72 @@ class ParserTest {
     }
 
     @Test
+    void throwsOnEmptyProgram() {
+        assertThrows(ParseException.class, () -> PARSER.parse(new Lexer("#").tokenize()));
+    }
+
+    @Test
     void throwsWhenMissingEndMarker() {
-        String source = "ТОЧКА A (1, 2)"; // без #
-        assertThrows(ParseException.class,
-                () -> new Parser(new Lexer(source).tokenize()).parse());
+        List<Token> tokens = new Lexer("ТОЧКА A (1, 2)").tokenize();
+        assertThrows(ParseException.class, () -> PARSER.parse(tokens));
     }
 
     @Test
     void throwsWhenMissingSemicolonBetweenSentences() {
-        String source = "ТОЧКА A (1, 2) ТОЧКА B (3, 4) #";
-        assertThrows(ParseException.class,
-                () -> new Parser(new Lexer(source).tokenize()).parse());
+        List<Token> tokens = new Lexer("ТОЧКА A (1, 2) ТОЧКА B (3, 4) #").tokenize();
+        assertThrows(ParseException.class, () -> PARSER.parse(tokens));
     }
 
     @Test
     void throwsOnTriangleWithWrongVertexCount() {
         assertThrows(ParseException.class,
                 () -> parseStmt("ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B"));
+    }
+
+    @Test
+    void rejectsTokenListWithoutEof() {
+        List<Token> withoutEof = new Lexer("ТОЧКА A (1, 2) #").tokenize().stream()
+                .filter(token -> token.type() != TokenType.EOF)
+                .toList();
+        assertThrows(IllegalArgumentException.class, () -> PARSER.parse(withoutEof));
+    }
+
+    @Test
+    void parsesAnotherLanguageWithoutAnyChangeToTheParser() {
+        Grammar names = commaSeparatedNames();
+        ParseNode root = new Parser(names).parse(new Lexer("A, B, C #").tokenize());
+
+        assertEquals(List.of(TokenType.IDENTIFIER, TokenType.COMMA, TokenType.IDENTIFIER,
+                        TokenType.COMMA, TokenType.IDENTIFIER, TokenType.END),
+                typesOf(root));
+    }
+
+    @Test
+    void reportsSyntaxErrorsOfAnotherLanguage() {
+        Parser parser = new Parser(commaSeparatedNames());
+        List<Token> tokens = new Lexer("A, #").tokenize();
+        assertThrows(ParseException.class, () -> parser.parse(tokens));
+    }
+
+    @Test
+    void refusesToCreateParserForNonLl1Grammar() {
+        NonTerminal start = new NonTerminal(0, "Start");
+        Grammar ambiguous = Grammar.builder(start)
+                .rule(start, new Terminal(TokenType.IDENTIFIER), new Terminal(TokenType.END))
+                .rule(start, new Terminal(TokenType.IDENTIFIER), new Terminal(TokenType.COMMA))
+                .build();
+        assertThrows(GrammarException.class, () -> new Parser(ambiguous));
+    }
+
+    private static Grammar commaSeparatedNames() {
+        NonTerminal start = new NonTerminal(0, "Start");
+        NonTerminal list = new NonTerminal(1, "List");
+        NonTerminal tail = new NonTerminal(2, "Tail");
+        return Grammar.builder(start)
+                .rule(start, list, new Terminal(TokenType.END))
+                .rule(list, new Terminal(TokenType.IDENTIFIER), tail)
+                .rule(tail, new Terminal(TokenType.COMMA), list)
+                .rule(tail)
+                .build();
     }
 }

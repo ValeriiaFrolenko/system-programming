@@ -1,204 +1,111 @@
 package parser;
 
 import ast.ParseNode;
+import grammar.FirstFollowSets;
+import grammar.Grammar;
+import grammar.GrammarException;
+import grammar.LL1Table;
+import grammar.NonTerminal;
+import grammar.Production;
+import grammar.Symbol;
+import grammar.Terminal;
 import lexer.Token;
 import lexer.TokenType;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 
 /**
- * Низхідний синтаксичний аналізатор (метод рекурсивного спуску).
+ * Табличний LL(1)-парсер, що працює для будь-якої {@link Grammar}.
  *
- * <p>Будує дерево синтаксичного розбору {@link ParseNode} за граматикою:
- * <pre>{@code
- * <текст>              ::= <список_речень> #
- * <список_речень>      ::= <речення> <продовження_списку>
- * <продовження_списку> ::= ; <список_речень> | <пусто>
- * <речення>            ::= <точка> | <пряма_через> | <побудова>
- * <побудова>           ::= ПОБУДУВАТИ <вид_побудови>
- * <вид_побудови>       ::= <перпендикуляр> | <трикутник> | <відрізок>
- * }</pre>
+ * <p>Парсер не містить жодного правила конкретної мови. Під час побудови
+ * він обчислює множини FIRST і FOLLOW та {@link LL1Table} з переданої йому
+ * граматики. Далі {@link #parse(List)} виконує один цикл над стеком
+ * символів граматики:
+ * <ul>
+ *   <li>термінал на вершині стека має збігатися з поточним токеном,
+ *       і токен споживається;</li>
+ *   <li>нетермінал на вершині замінюється правою частиною продукції,
+ *       яку таблиця дає для поточного токена.</li>
+ * </ul>
+ * Жодних повернень (backtracking) немає. Щоб змінити мову, змініть
+ * граматику; цей клас лишається тим самим.
  *
- * <p>Граматика — строго LL(1): кожне рішення про розгалуження
- * ухвалюється за одним токеном уперед. Три команди починаються зі
- * спільного префікса {@code ПОБУДУВАТИ}; щоб зберегти LL(1), граматику
- * піддано <b>лівій факторизації</b> — префікс винесено в нетермінал
- * {@code <побудова>}, і розгалуження відбувається за наступним токеном
- * ({@code PERPENDICULAR}, {@code TRIANGLE} або {@code SEGMENT}), які
- * вже різні. У коді цьому відповідає {@link #parseBuild()}. Завдяки
- * цьому парсер не робить повернень (backtracking).
- *
- * <p>Після побудови дерево передається в {@link TreeFolder}, який згортає
- * його у спрощене AST {@link ast.Stmt}.
+ * <p>Дерево розбору будується під час циклу: кожен запис у стеку пам'ятає
+ * список дітей вузла, до якого належить.
  */
-public class Parser {
-    private final List<Token> tokens;
-    private int pos = 0;
+public final class Parser {
+    private final Grammar grammar;
+    private final LL1Table table;
 
-    public Parser(List<Token> tokens) {
-        this.tokens = tokens;
-    }
-
-    /** Розбирає весь текст і повертає корінь дерева. */
-    public ParseNode.Program parse() {
-        ParseNode.SentenceList sentenceList = parseSentenceList();
-        expect(TokenType.END);
-        expect(TokenType.EOF);
-        return new ParseNode.Program(sentenceList);
-    }
-
-    /** {@code <список_речень> ::= <речення> <продовження_списку>} */
-    private ParseNode.SentenceList parseSentenceList() {
-        List<ParseNode.Sentence> sentences = new ArrayList<>();
-        sentences.add(parseSentence());
-        sentences.addAll(parseSentenceListTail());
-        return new ParseNode.SentenceList(sentences);
-    }
-
-    /** {@code <продовження_списку> ::= ; <список_речень> | <пусто>} */
-    private List<ParseNode.Sentence> parseSentenceListTail() {
-        if (peek().type() == TokenType.SEMICOLON) {
-            advance();
-            return parseSentenceList().sentences();
-        }
-        return List.of();
-    }
-
-    /** {@code <речення>} — розгалуження за першим токеном. */
-    private ParseNode.Sentence parseSentence() {
-        Token token = peek();
-        ParseNode body = switch (token.type()) {
-            case POINT -> parsePointDecl();
-            case DRAW -> parseLineThrough();
-            case BUILD -> parseBuild();
-            default -> throw new ParseException(token, "Очікувався початок речення");
-        };
-        return new ParseNode.Sentence(body);
-    }
-
-    /** {@code <точка> ::= ТОЧКА <ім'я> ( <число> , <число> )} */
-    private ParseNode.PointDecl parsePointDecl() {
-        expect(TokenType.POINT);
-        ParseNode.Name name = parseName();
-        expect(TokenType.LPAREN);
-        ParseNode.NumberLit x = parseNumberLit();
-        expect(TokenType.COMMA);
-        ParseNode.NumberLit y = parseNumberLit();
-        expect(TokenType.RPAREN);
-        return new ParseNode.PointDecl(name, x, y);
-    }
-
-    /** {@code <пряма_через> ::= ПРОВЕСТИ ПРЯМУ ЧЕРЕЗ <пара_імен>} */
-    private ParseNode.LineThrough parseLineThrough() {
-        expect(TokenType.DRAW);
-        expect(TokenType.LINE);
-        expect(TokenType.THROUGH);
-        ParseNode.NamePair pair = parseNamePair();
-        return new ParseNode.LineThrough(pair);
+    /**
+     * Створює парсер для граматики.
+     *
+     * @throws GrammarException якщо граматика не є LL(1)
+     */
+    public Parser(Grammar grammar) {
+        this.grammar = grammar;
+        this.table = new LL1Table(grammar, new FirstFollowSets(grammar));
     }
 
     /**
-     * {@code <побудова> ::= ПОБУДУВАТИ <вид_побудови>}.
+     * Розбирає список токенів, що закінчується {@link TokenType#EOF}.
+     *
+     * @return корінь дерева розбору, {@link ParseNode.Branch} стартового символу
+     * @throws ParseException якщо токени не належать мові
      */
-    private ParseNode.Build parseBuild() {
-        expect(TokenType.BUILD);
-        Token next = peek();
+    public ParseNode parse(List<Token> tokens) {
+        List<ParseNode> roots = new ArrayList<>();
+        Deque<Frame> stack = new ArrayDeque<>();
+        stack.push(new Frame(new Terminal(TokenType.EOF), roots));
+        stack.push(new Frame(grammar.start(), roots));
 
-        ParseNode.BuildKind kind = switch (next.type()) {
-            case PERPENDICULAR -> parsePerpendicular();
-            case TRIANGLE -> parseTriangle();
-            case SEGMENT -> parseSegment();
-            default -> throw new ParseException(next, "Очікувався ПЕРПЕНДИКУЛЯР, ТРИКУТНИК або ВІДРІЗОК");
-        };
-        return new ParseNode.Build(kind);
-    }
-
-    /** {@code <перпендикуляр> ::= ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ ( <пара_імен> ) В ТОЧЦІ <ім'я>} */
-    private ParseNode.Perpendicular parsePerpendicular() {
-        expect(TokenType.PERPENDICULAR);
-        expect(TokenType.TO);
-        expect(TokenType.LINE);
-        expect(TokenType.LPAREN);
-        ParseNode.NamePair base = parseNamePair();
-        expect(TokenType.RPAREN);
-        expect(TokenType.AT);
-        expect(TokenType.POINT_LOC);
-        ParseNode.Name target = parseName();
-        return new ParseNode.Perpendicular(base, target);
-    }
-
-    /** {@code <трикутник> ::= ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ <список_імен>} */
-    private ParseNode.Triangle parseTriangle() {
-        expect(TokenType.TRIANGLE);
-        expect(TokenType.BY);
-        expect(TokenType.THREE);
-        expect(TokenType.VERTEX);
-        ParseNode.NameList vertices = parseNameList();
-        return new ParseNode.Triangle(vertices);
-    }
-
-    /** {@code <відрізок> ::= ВІДРІЗОК ВІД <ім'я> ДО <ім'я>} */
-    private ParseNode.Segment parseSegment() {
-        expect(TokenType.SEGMENT);
-        expect(TokenType.FROM);
-        ParseNode.Name from = parseName();
-        expect(TokenType.TO);
-        ParseNode.Name to = parseName();
-        return new ParseNode.Segment(from, to);
-    }
-
-    /** {@code <список_імен> ::= <ім'я> <продовження_імен>} */
-    private ParseNode.NameList parseNameList() {
-        List<ParseNode.Name> names = new ArrayList<>();
-        names.add(parseName());
-        names.addAll(parseNameListTail());
-        return new ParseNode.NameList(names);
-    }
-
-    /** {@code <продовження_імен> ::= , <список_імен> | <пусто>} */
-    private List<ParseNode.Name> parseNameListTail() {
-        if (peek().type() == TokenType.COMMA) {
-            advance();
-            return parseNameList().names();
+        int position = 0;
+        while (!stack.isEmpty()) {
+            if (position >= tokens.size()) {
+                throw new IllegalArgumentException("Token list must end with " + TokenType.EOF);
+            }
+            Frame frame = stack.pop();
+            Token token = tokens.get(position);
+            switch (frame.symbol()) {
+                case Terminal terminal -> {
+                    match(terminal, token, frame.siblings());
+                    position++;
+                }
+                case NonTerminal nonTerminal -> expand(nonTerminal, token, frame.siblings(), stack);
+            }
         }
-        return List.of();
+        return roots.getFirst();
     }
 
-    /** {@code <пара_імен> ::= <ім'я> , <ім'я>} */
-    private ParseNode.NamePair parseNamePair() {
-        ParseNode.Name a = parseName();
-        expect(TokenType.COMMA);
-        ParseNode.Name b = parseName();
-        return new ParseNode.NamePair(a, b);
-    }
-
-    /** {@code <ім'я> ::= IDENTIFIER} */
-    private ParseNode.Name parseName() {
-        Token token = expect(TokenType.IDENTIFIER);
-        return new ParseNode.Name(token);
-    }
-
-    /** {@code <число> ::= NUMBER} */
-    private ParseNode.NumberLit parseNumberLit() {
-        Token token = expect(TokenType.NUMBER);
-        return new ParseNode.NumberLit(token);
-    }
-
-    private Token peek() { return tokens.get(pos); }
-
-    private Token advance() {
-        Token token = tokens.get(pos);
-        pos++;
-        return token;
-    }
-
-    private Token expect(TokenType type) {
-        Token token = peek();
-        if (token.type() != type) {
-            throw new ParseException(token, "Очікувалося " + type);
+    private static void match(Terminal expected, Token actual, List<ParseNode> siblings) {
+        if (actual.type() != expected.type()) {
+            throw new ParseException(actual, "Expected " + expected.type());
         }
-        pos++;
-        return token;
+        if (expected.type() != TokenType.EOF) {
+            siblings.add(ParseNode.leaf(actual));
+        }
+    }
+
+    private void expand(NonTerminal nonTerminal, Token lookahead,
+                        List<ParseNode> siblings, Deque<Frame> stack) {
+        Production production = table.lookup(nonTerminal, lookahead.type()).orElseThrow(
+                () -> new ParseException(lookahead, "Expected one of " + table.expected(nonTerminal)));
+
+        List<ParseNode> children = new ArrayList<>();
+        siblings.add(ParseNode.branch(nonTerminal, children));
+
+        List<Symbol> right = production.right();
+        for (int i = right.size() - 1; i >= 0; i--) {
+            stack.push(new Frame(right.get(i), children));
+        }
+    }
+
+    /**
+     * Запис стека: символ, який ще належить обробити, і список дітей, до якого він належить.
+     */
+    private record Frame(Symbol symbol, List<ParseNode> siblings) {
     }
 }

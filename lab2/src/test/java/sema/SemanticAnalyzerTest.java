@@ -2,6 +2,7 @@ package sema;
 
 import ast.ParseNode;
 import ast.Stmt;
+import grammar.GeometryGrammar;
 import lexer.Lexer;
 import org.junit.jupiter.api.Test;
 import parser.Parser;
@@ -13,7 +14,7 @@ class SemanticAnalyzerTest {
         String source = sourceWithoutEnd.strip().endsWith("#")
                 ? sourceWithoutEnd
                 : sourceWithoutEnd + " #";
-        ParseNode.Program tree = new Parser(new Lexer(source).tokenize()).parse();
+        ParseNode tree = new Parser(GeometryGrammar.grammar()).parse(new Lexer(source).tokenize());
         Stmt.Program program = new TreeFolder().fold(tree);
         return new SemanticAnalyzer().analyze(program);
     }

@@ -1,133 +1,134 @@
 package ast;
 
+import grammar.NonTerminal;
 import lexer.Token;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 /**
- * Дерево синтаксичного розбору (concrete syntax tree).
+ * Вузол дерева синтаксичного розбору.
  *
- * <p>Кожен record відповідає одному нетерміналу граматики. Дерево будує
- * {@link parser.Parser} методом рекурсивного спуску; воно повторює
- * структуру речення, включно зі службовими вузлами,
- * (наприклад, {@link Sentence} — обгортка над тілом речення).
- *
- * <p>Після побудови дерево згортається у спрощене AST {@link Stmt}
- * класом {@link parser.TreeFolder}.
- *
- * <p>Граматика:
- * <pre>{@code
- * <текст>              ::= <список_речень> #
- * <список_речень>      ::= <речення> <продовження_списку>
- * <продовження_списку> ::= ; <список_речень> | <пусто>
- *
- * <речення>            ::= <точка> | <пряма_через> | <побудова>
- *
- * <побудова>           ::= ПОБУДУВАТИ <вид_побудови>
- * <вид_побудови>       ::= <перпендикуляр> | <трикутник> | <відрізок>
- *
- * <точка>              ::= ТОЧКА <ім'я> ( <число> , <число> )
- * <пряма_через>        ::= ПРОВЕСТИ ПРЯМУ ЧЕРЕЗ <пара_імен>
- * <перпендикуляр>      ::= ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ ( <пара_імен> ) В ТОЧЦІ <ім'я>
- * <трикутник>          ::= ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ <список_імен>
- * <відрізок>           ::= ВІДРІЗОК ВІД <ім'я> ДО <ім'я>
- *
- * <список_імен>        ::= <ім'я> <продовження_імен>
- * <продовження_імен>   ::= , <список_імен> | <пусто>
- * <пара_імен>          ::= <ім'я> , <ім'я>
- * <ім'я>               ::= IDENTIFIER
- * <число>              ::= NUMBER
- * }</pre>
- *
- * <p>Кожен нетермінал має власний числовий код {@link #code()} — для
- * діагностики та наочної демонстрації дерева ({@link ParseTreePrinter}).
+ * <p>Дерево будується класом {@link parser.Parser} для будь-якої
+ * {@link grammar.Grammar}, тому має лише два види вузлів і не залежить
+ * від мови:
+ * <ul>
+ *   <li>{@link Branch} - нетермінал зі своїм числовим кодом і дітьми
+ *       у порядку правої частини використаної продукції;</li>
+ *   <li>{@link Leaf} - термінал, що несе токен із лексера.</li>
+ * </ul>
+ * Кожен термінал входу, включно з роздільниками й дужками, присутній
+ * як {@link Leaf}. Токен кінця файлу - ні.
  */
 public sealed interface ParseNode {
 
-    /** Числовий код нетермінала, унікальний у межах цього sealed-типу. */
-    int code();
+    /**
+     * Повертає всі токени під цим вузлом у порядку джерела.
+     */
+    List<Token> tokens();
 
-    /** {@code <вид_побудови>} — диз'юнкція трьох конкретних видів. */
-    sealed interface BuildKind extends ParseNode permits Perpendicular, Triangle, Segment {}
-
-    /** {@code <текст>} — корінь дерева: список речень плюс маркер {@code #}. */
-    record Program(SentenceList sentenceList) implements ParseNode {
-        public static final int CODE = 0;
-        public int code() { return CODE; }
-
-        /** Зручність для коду, якому байдуже до CST-вузла {@link SentenceList}. */
-        public List<Sentence> sentences() { return sentenceList.sentences(); }
+    /**
+     * Створює вузол-гілку. Список використовується як є, див. {@link Branch#children()}.
+     */
+    static Branch branch(NonTerminal symbol, List<ParseNode> children) {
+        return new Branch(symbol, children);
     }
 
-    /** {@code <список_речень>} — послідовність речень верхнього рівня. */
-    record SentenceList(List<Sentence> sentences) implements ParseNode {
-        public static final int CODE = 1;
-        public int code() { return CODE; }
+    /**
+     * Створює вузол-листок.
+     */
+    static Leaf leaf(Token token) {
+        return new Leaf(token);
     }
 
-    /** {@code <речення>} — обгортка над тілом одного речення. */
-    record Sentence(ParseNode body) implements ParseNode {
-        public static final int CODE = 2;
-        public int code() { return CODE; }
+    /**
+     * Вузол-нетермінал.
+     *
+     * @param symbol   нетермінал
+     * @param children діти в порядку джерела; це лише для читання представлення списку,
+     *                 переданого в конструктор, тож парсер може заповнювати список після
+     *                 створення вузла
+     */
+    record Branch(NonTerminal symbol, List<ParseNode> children) implements ParseNode {
+
+        public Branch {
+            Objects.requireNonNull(symbol, "symbol");
+            children = Collections.unmodifiableList(children);
+        }
+
+        /**
+         * Повертає числовий код нетермінала.
+         */
+        public int code() {
+            return symbol.code();
+        }
+
+        /**
+         * Повертає {@code true}, якщо цей вузол є заданим нетерміналом.
+         */
+        public boolean is(NonTerminal expected) {
+            return symbol.equals(expected);
+        }
+
+        /**
+         * Повертає першого прямого нащадка, що є заданим нетерміналом.
+         */
+        public Optional<Branch> findChild(NonTerminal expected) {
+            for (ParseNode child : children) {
+                if (child instanceof Branch branch && branch.is(expected)) {
+                    return Optional.of(branch);
+                }
+            }
+            return Optional.empty();
+        }
+
+        /**
+         * Повертає першого прямого нащадка, що є заданим нетерміналом.
+         */
+        public Branch child(NonTerminal expected) {
+            return findChild(expected).orElseThrow(
+                    () -> new IllegalStateException(symbol + " has no child " + expected));
+        }
+
+        /**
+         * Повертає єдиного нащадка, який має бути нетерміналом.
+         *
+         * @throws IllegalStateException якщо вузол має іншу форму
+         */
+        public Branch onlyChildBranch() {
+            if (children.size() == 1 && children.getFirst() instanceof Branch branch) {
+                return branch;
+            }
+            throw new IllegalStateException(symbol + " must have exactly one non-terminal child");
+        }
+
+        @Override
+        public List<Token> tokens() {
+            List<Token> result = new ArrayList<>();
+            for (ParseNode child : children) {
+                result.addAll(child.tokens());
+            }
+            return result;
+        }
     }
 
-    /** {@code <точка>} — {@code ТОЧКА A (x, y)}. */
-    record PointDecl(Name name, NumberLit x, NumberLit y) implements ParseNode {
-        public static final int CODE = 3;
-        public int code() { return CODE; }
-    }
+    /**
+     * Вузол-термінал.
+     *
+     * @param token токен із лексера
+     */
+    record Leaf(Token token) implements ParseNode {
 
-    /** {@code <пряма_через>} — {@code ПРОВЕСТИ ПРЯМУ ЧЕРЕЗ A, B}. */
-    record LineThrough(NamePair points) implements ParseNode {
-        public static final int CODE = 4;
-        public int code() { return CODE; }
-    }
+        public Leaf {
+            Objects.requireNonNull(token, "token");
+        }
 
-    /** {@code <побудова>} — {@code ПОБУДУВАТИ <вид_побудови>}. */
-    record Build(BuildKind kind) implements ParseNode {
-        public static final int CODE = 5;
-        public int code() { return CODE; }
-    }
-
-    /** {@code <перпендикуляр>} — {@code … ДО ПРЯМОЇ (A, B) В ТОЧЦІ C}. */
-    record Perpendicular(NamePair base, Name target) implements BuildKind {
-        public static final int CODE = 6;
-        public int code() { return CODE; }
-    }
-
-    /** {@code <трикутник>} — {@code … ПО ТРЬОМ ВЕРШИНАМ A, B, C}. */
-    record Triangle(NameList vertices) implements BuildKind {
-        public static final int CODE = 7;
-        public int code() { return CODE; }
-    }
-
-    /** {@code <відрізок>} — {@code … ВІД A ДО B}. */
-    record Segment(Name from, Name to) implements BuildKind {
-        public static final int CODE = 8;
-        public int code() { return CODE; }
-    }
-
-    /** {@code <список_імен>} — послідовність імен через кому. */
-    record NameList(List<Name> names) implements ParseNode {
-        public static final int CODE = 9;
-        public int code() { return CODE; }
-    }
-
-    /** {@code <пара_імен>} — рівно два імені через кому. */
-    record NamePair(Name a, Name b) implements ParseNode {
-        public static final int CODE = 10;
-        public int code() { return CODE; }
-    }
-
-    /** {@code <ім'я>} — листок дерева, несе вихідний токен {@code IDENTIFIER}. */
-    record Name(Token token) implements ParseNode {
-        public static final int CODE = 11;
-        public int code() { return CODE; }
-    }
-
-    /** {@code <число>} — листок дерева, несе вихідний токен {@code NUMBER}. */
-    record NumberLit(Token token) implements ParseNode {
-        public static final int CODE = 12;
-        public int code() { return CODE; }
+        @Override
+        public List<Token> tokens() {
+            return List.of(token);
+        }
     }
 }
