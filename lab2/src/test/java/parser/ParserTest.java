@@ -95,7 +95,8 @@ class ParserTest {
     @Test
     void nameListCarriesAllNamesInParseTree() {
         ParseNode.Program program = parseTree("ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C");
-        ParseNode.Triangle triangle = (ParseNode.Triangle) program.sentences().getFirst().body();
+        ParseNode.Build build = (ParseNode.Build) program.sentences().getFirst().body();
+        ParseNode.Triangle triangle = (ParseNode.Triangle) build.kind();
         assertEquals(3, triangle.vertices().names().size());
     }
 
@@ -103,9 +104,18 @@ class ParserTest {
     void nonTerminalsCarryExpectedCodes() {
         ParseNode.Program program = parseTree("ТОЧКА A (1, 2)");
         assertEquals(ParseNode.Program.CODE, program.code());
+        assertEquals(ParseNode.SentenceList.CODE, program.sentenceList().code());
         ParseNode.Sentence sentence = program.sentences().getFirst();
         assertEquals(ParseNode.Sentence.CODE, sentence.code());
         assertEquals(ParseNode.PointDecl.CODE, sentence.body().code());
+    }
+
+    @Test
+    void buildNodeCarriesExpectedCode() {
+        ParseNode.Program program = parseTree("ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C");
+        ParseNode.Build build = (ParseNode.Build) program.sentences().getFirst().body();
+        assertEquals(ParseNode.Build.CODE, build.code());
+        assertEquals(ParseNode.Triangle.CODE, build.kind().code());
     }
 
     @Test

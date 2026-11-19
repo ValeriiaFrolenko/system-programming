@@ -42,25 +42,25 @@ public class Parser {
 
     /** Розбирає весь текст і повертає корінь дерева. */
     public ParseNode.Program parse() {
-        List<ParseNode.Sentence> sentences = parseSentenceList();
+        ParseNode.SentenceList sentenceList = parseSentenceList();
         expect(TokenType.END);
         expect(TokenType.EOF);
-        return new ParseNode.Program(sentences);
+        return new ParseNode.Program(sentenceList);
     }
 
     /** {@code <список_речень> ::= <речення> <продовження_списку>} */
-    private List<ParseNode.Sentence> parseSentenceList() {
+    private ParseNode.SentenceList parseSentenceList() {
         List<ParseNode.Sentence> sentences = new ArrayList<>();
         sentences.add(parseSentence());
         sentences.addAll(parseSentenceListTail());
-        return sentences;
+        return new ParseNode.SentenceList(sentences);
     }
 
     /** {@code <продовження_списку> ::= ; <список_речень> | <пусто>} */
     private List<ParseNode.Sentence> parseSentenceListTail() {
         if (peek().type() == TokenType.SEMICOLON) {
             advance();
-            return parseSentenceList();
+            return parseSentenceList().sentences();
         }
         return List.of();
     }
@@ -107,15 +107,17 @@ public class Parser {
      * {@code TRIANGLE}, {@code SEGMENT}) утворюють різні FIRST-множини,
      * тому граматика лишається LL(1).
      */
-    private ParseNode parseBuild() {
+    private ParseNode.Build parseBuild() {
         expect(TokenType.BUILD);
         Token next = peek();
 
-        if (next.type() == TokenType.PERPENDICULAR) return parsePerpendicular();
-        if (next.type() == TokenType.TRIANGLE) return parseTriangle();
-        if (next.type() == TokenType.SEGMENT) return parseSegment();
-
-        throw new ParseException(next, "Очікувався ПЕРПЕНДИКУЛЯР, ТРИКУТНИК або ВІДРІЗОК");
+        ParseNode.BuildKind kind = switch (next.type()) {
+            case PERPENDICULAR -> parsePerpendicular();
+            case TRIANGLE -> parseTriangle();
+            case SEGMENT -> parseSegment();
+            default -> throw new ParseException(next, "Очікувався ПЕРПЕНДИКУЛЯР, ТРИКУТНИК або ВІДРІЗОК");
+        };
+        return new ParseNode.Build(kind);
     }
 
     /** {@code <перпендикуляр> ::= ПЕРПЕНДИКУЛЯР ДО ПРЯМОЇ ( <пара_імен> ) В ТОЧЦІ <ім'я>} */

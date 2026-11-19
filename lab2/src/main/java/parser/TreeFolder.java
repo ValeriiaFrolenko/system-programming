@@ -13,9 +13,10 @@ import java.util.List;
  *
  * <p>Окремий прохід після {@link Parser}: не аналізує граматику, а лише
  * «сплющує» вже розібрану структуру, прибираючи службові вузли
- * ({@code Sentence}, {@code NamePair}, {@code NameList}, {@code Name},
- * {@code NumberLit}) і перетворюючи текстові токени на зручні типи
- * ({@code String} для імен, {@code double} для координат).
+ * ({@code Sentence}, {@code SentenceList}, {@code Build}, {@code NamePair},
+ * {@code NameList}, {@code Name}, {@code NumberLit}) і перетворюючи
+ * текстові токени на зручні типи ({@code String} для імен, {@code double}
+ * для координат).
  *
  * <p>Тут же — єдина перевірка, яку зручніше зробити на цьому рівні:
  * кількість вершин трикутника мусить бути рівно 3. Усе інше (чи існують
@@ -38,12 +39,18 @@ public class TreeFolder {
         return switch (body) {
             case ParseNode.PointDecl p -> foldPointDecl(p);
             case ParseNode.LineThrough l -> foldLineThrough(l);
-            case ParseNode.Perpendicular p -> foldPerpendicular(p);
-            case ParseNode.Triangle t -> foldTriangle(t);
-            case ParseNode.Segment s -> foldSegment(s);
+            case ParseNode.Build b -> foldBuild(b);
             default -> throw new ParseException(
                     extractAnyToken(body),
                     "Непідтримуваний вид речення: код нетермінала " + body.code());
+        };
+    }
+
+    private Stmt foldBuild(ParseNode.Build build) {
+        return switch (build.kind()) {
+            case ParseNode.Perpendicular p -> foldPerpendicular(p);
+            case ParseNode.Triangle t -> foldTriangle(t);
+            case ParseNode.Segment s -> foldSegment(s);
         };
     }
 

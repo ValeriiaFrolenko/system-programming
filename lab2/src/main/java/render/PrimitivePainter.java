@@ -8,13 +8,6 @@ import java.util.List;
 /**
  * Малює чотири примітиви з {@link GraphicsCommand} у заданому
  * {@link Graphics2D} з урахуванням масштабу {@link Viewport}.
- *
- * <p>Відокремлений від {@link Renderer}, щоб {@code Renderer} займався
- * лише оркестрацією (створення полотна, порядок викликів, збереження
- * файлу), а вся логіка «як виглядає примітив» жила тут.
- *
- * <p>Кольори — константи цього класу; якщо колись знадобиться тема,
- * її місце тут, а не в {@link Renderer}.
  */
 public class PrimitivePainter {
     private static final Color COLOR_POINT = Color.BLACK;

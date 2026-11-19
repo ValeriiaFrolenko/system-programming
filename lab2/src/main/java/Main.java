@@ -1,42 +1,30 @@
 import ast.ParseNode;
 import ast.ParseTreePrinter;
-import ast.Stmt;
 import lexer.LexException;
-import lexer.Lexer;
 import parser.ParseException;
-import parser.Parser;
-import parser.TreeFolder;
-import render.CodeGenerator;
-import render.GraphicsCommand;
-import render.Renderer;
-import sema.GeometryModel;
-import sema.SemanticAnalyzer;
+import pipeline.Translator;
 import sema.SemanticException;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Точка входу транслятора геометричної DSL.
  *
- * <p>Організовує повний конвеєр обробки вхідного файлу:
- * <ol>
- *   <li>{@link Lexer} — розбиття тексту на токени;</li>
- *   <li>{@link Parser} — побудова дерева синтаксичного розбору
- *       {@link ParseNode.Program};</li>
- *   <li>{@link TreeFolder} — згортання дерева у спрощене AST
- *       {@link Stmt.Program};</li>
- *   <li>{@link SemanticAnalyzer} — семантична перевірка і побудова
- *       {@link GeometryModel};</li>
- *   <li>{@link CodeGenerator} — генерація команд {@link GraphicsCommand};</li>
- *   <li>{@link Renderer} — малювання через Java2D і збереження PNG.</li>
- * </ol>
+ * <p>Тонкий шар «аргументи + файловий I/O + діагностика»: сам конвеєр
+ * живе у {@link Translator}. {@code Main} лише читає джерело, за
+ * потреби друкує CST ({@code --tree}), викликає {@link Translator#parse}
+ * і {@link Translator#render}, зберігає PNG і ловить помилки всіх етапів.
  *
  * <p>Використання: {@code java Main [input.geo] [output.png] [--tree]}.
  * Перші два аргументи — необов'язкові (за замовчуванням {@code input.geo}
  * і {@code output.png}). Прапорець {@code --tree} друкує дерево
  * синтаксичного розбору перед семантичним аналізом — зручно для
  * демонстрації стадії побудови дерева.
- *
- * <p>Помилки всіх етапів ловляться тут і друкуються в stderr; у разі
- * успіху в stdout виводиться шлях до збереженого PNG.
  */
 void main(String[] args) {
     String inputPath = "input.geo";
@@ -53,19 +41,15 @@ void main(String[] args) {
 
     try {
         String source = Files.readString(Path.of(inputPath), StandardCharsets.UTF_8);
+        Translator translator = new Translator();
 
-        var tokens = new Lexer(source).tokenize();
-        ParseNode.Program tree = new Parser(tokens).parse();
-
+        ParseNode.Program tree = translator.parse(source);
         if (printTree) {
             IO.println(new ParseTreePrinter().print(tree));
         }
 
-        Stmt.Program ast = new TreeFolder().fold(tree);
-        GeometryModel model = new SemanticAnalyzer().analyze(ast);
-        List<GraphicsCommand> commands = new CodeGenerator().generate(model);
-
-        new Renderer().render(commands, outputPath);
+        BufferedImage image = translator.render(tree);
+        ImageIO.write(image, "png", new File(outputPath));
         IO.println("Успіх! Зображення збережено у файл: " + outputPath);
 
     } catch (IOException e) {

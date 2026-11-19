@@ -1,15 +1,12 @@
 package render;
 
-import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
 import java.util.List;
 
 /**
  * Оркестратор малювання: створює полотно, проганяє команди в
- * правильному порядку, зберігає PNG.
+ * правильному порядку, повертає готове зображення.
  *
  * <p>Не знає, як виглядає жоден примітив — усе делегує
  * {@link PrimitivePainter}. Його єдина робота:
@@ -18,8 +15,7 @@ import java.util.List;
  *   <li>побудувати {@link Viewport} за списком команд;</li>
  *   <li>викликати {@code draw*} у фіксованому порядку: полігони →
  *       відрізки → нескінченні прямі → точки (щоб дрібні елементи були
- *       зверху);</li>
- *   <li>зберегти результат через {@link ImageIO}.</li>
+ *       зверху).</li>
  * </ol>
  */
 public class Renderer {
@@ -27,8 +23,8 @@ public class Renderer {
     private static final int HEIGHT = 600;
     private static final int PADDING = 50;
 
-    /** Виконує всі команди і зберігає результат у PNG за вказаним шляхом. */
-    public void render(List<GraphicsCommand> commands, String outputPath) throws IOException {
+    /** Виконує всі команди і повертає готове зображення. */
+    public BufferedImage render(List<GraphicsCommand> commands) {
         BufferedImage image = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = image.createGraphics();
 
@@ -59,6 +55,6 @@ public class Renderer {
         }
 
         g.dispose();
-        ImageIO.write(image, "png", new File(outputPath));
+        return image;
     }
 }

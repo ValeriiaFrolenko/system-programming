@@ -13,9 +13,6 @@ import java.util.Set;
  *       відрізок і {@link render.CodeGenerator} намалював би замість
  *       полігону лінію).</li>
  * </ul>
- *
- * <p>Винесено з {@link SemanticAnalyzer}, щоб алгоритм площі можна було
- * протестувати окремо і щоб основний аналізатор залишався коротким.
  */
 public final class TriangleValidator {
 

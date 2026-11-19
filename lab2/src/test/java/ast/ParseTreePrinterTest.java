@@ -19,6 +19,7 @@ class ParseTreePrinterTest {
         String output = printTree("ТОЧКА A (1, 2)");
 
         assertTrue(output.contains("Program [" + ParseNode.Program.CODE + "]"));
+        assertTrue(output.contains("SentenceList [" + ParseNode.SentenceList.CODE + "]"));
         assertTrue(output.contains("Sentence [" + ParseNode.Sentence.CODE + "]"));
         assertTrue(output.contains("PointDecl [" + ParseNode.PointDecl.CODE + "]"));
         assertTrue(output.contains("Name [" + ParseNode.Name.CODE + "]"));
@@ -31,14 +32,17 @@ class ParseTreePrinterTest {
         String output = printTree("ТОЧКА A (1, 2)");
         String[] lines = output.split("\n");
 
-        // Program -> Sentence -> PointDecl -> Name: відступ зростає на
-        // кожному рівні вкладеності.
+        // Program -> SentenceList -> Sentence -> PointDecl -> Name:
+        // відступ зростає на кожному рівні вкладеності.
         int programIndent = leadingSpaces(lines[0]);
-        int sentenceIndent = leadingSpaces(lines[1]);
-        int pointDeclIndent = leadingSpaces(lines[2]);
-        int nameIndent = leadingSpaces(lines[3]);
+        int sentenceListIndent = leadingSpaces(lines[1]);
+        int sentenceIndent = leadingSpaces(lines[2]);
+        int pointDeclIndent = leadingSpaces(lines[3]);
+        int nameIndent = leadingSpaces(lines[4]);
 
-        assertTrue(sentenceIndent > programIndent);
+        assertEquals(0, programIndent);
+        assertTrue(sentenceListIndent > programIndent);
+        assertTrue(sentenceIndent > sentenceListIndent);
         assertTrue(pointDeclIndent > sentenceIndent);
         assertTrue(nameIndent > pointDeclIndent);
     }
@@ -47,6 +51,7 @@ class ParseTreePrinterTest {
     void printsAllThreeNamesForTriangleNameList() {
         String output = printTree("ПОБУДУВАТИ ТРИКУТНИК ПО ТРЬОМ ВЕРШИНАМ A, B, C");
 
+        assertTrue(output.contains("Build [" + ParseNode.Build.CODE + "]"));
         assertTrue(output.contains("Triangle [" + ParseNode.Triangle.CODE + "]"));
         assertTrue(output.contains("NameList [" + ParseNode.NameList.CODE + "]"));
         assertEquals(3, output.split("Name \\[" + ParseNode.Name.CODE + "\\]").length - 1);

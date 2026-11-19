@@ -29,7 +29,11 @@ public class ParseTreePrinter {
         switch (node) {
             case ParseNode.Program p -> {
                 sb.append("Program [").append(ParseNode.Program.CODE).append("]\n");
-                for (ParseNode.Sentence s : p.sentences()) printNode(s, depth + 1, sb);
+                printNode(p.sentenceList(), depth + 1, sb);
+            }
+            case ParseNode.SentenceList sl -> {
+                sb.append("SentenceList [").append(ParseNode.SentenceList.CODE).append("]\n");
+                for (ParseNode.Sentence s : sl.sentences()) printNode(s, depth + 1, sb);
             }
             case ParseNode.Sentence s -> {
                 sb.append("Sentence [").append(ParseNode.Sentence.CODE).append("]\n");
@@ -44,6 +48,10 @@ public class ParseTreePrinter {
             case ParseNode.LineThrough l -> {
                 sb.append("LineThrough [").append(ParseNode.LineThrough.CODE).append("]\n");
                 printNode(l.points(), depth + 1, sb);
+            }
+            case ParseNode.Build b -> {
+                sb.append("Build [").append(ParseNode.Build.CODE).append("]\n");
+                printNode(b.kind(), depth + 1, sb);
             }
             case ParseNode.Perpendicular p -> {
                 sb.append("Perpendicular [").append(ParseNode.Perpendicular.CODE).append("]\n");
